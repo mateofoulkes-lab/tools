@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>matt's tools</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="shell">
+      <div class="topbar">
+        <h1 class="brand">matt's tools</h1>
+        <p class="subtle">local toolbox · single-file apps · hacker-minimal</p>
+      </div>
+
+      <div class="content">
+        <div class="card">
+          <div class="cardTitle">
+            <span>APLICACIONES</span>
+            <span class="badge badgeAccent" id="countBadge">0 tools</span>
+          </div>
+
+          <ul class="list" id="toolList">
+            <!-- Tool items (HTML estático, o podés generarlos por JS) -->
+            <li class="toolItem">
+              <a class="toolLink toolLeft" href="desplazamiento.html">
+                <div class="toolIcon">Δ</div>
+                <div class="toolText">
+                  <p class="toolName">Desplazamiento alfabético</p>
+                  <p class="toolDesc">Cifra texto moviendo letras (con o sin Ñ). Resalta la salida según letras prohibidas.</p>
+                </div>
+              </a>
+              <div class="rightRow">
+                <span class="badge badgeAccent">ready</span>
+                <span class="badge">html/js</span>
+              </div>
+            </li>
+
+            <!-- placeholders para futuras herramientas -->
+            <li class="toolItem">
+              <a class="toolLink toolLeft" href="#" onclick="openComingSoon(event, 'Generador de QR')">
+                <div class="toolIcon">QR</div>
+                <div class="toolText">
+                  <p class="toolName">Generador de QR</p>
+                  <p class="toolDesc">Placeholder. Ideal para links, Wi-Fi, texto y vCards.</p>
+                </div>
+              </a>
+              <div class="rightRow">
+                <span class="badge badgeWarn">soon</span>
+                <span class="badge">popup</span>
+              </div>
+            </li>
+
+            <li class="toolItem">
+              <a class="toolLink toolLeft" href="#" onclick="openComingSoon(event, 'Notas rápidas')">
+                <div class="toolIcon">✎</div>
+                <div class="toolText">
+                  <p class="toolName">Notas rápidas</p>
+                  <p class="toolDesc">Placeholder. Editor + export JSON/MD + búsqueda.</p>
+                </div>
+              </a>
+              <div class="rightRow">
+                <span class="badge badgeWarn">soon</span>
+                <span class="badge">controls</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">
+            <span>NOTAS</span>
+            <span class="badge">v0</span>
+          </div>
+          <p class="subtle" style="margin:0; line-height:1.55;">
+            Este index es un hub. El estilo y componentes viven en <b>common.css</b>
+            para que todas las herramientas compartan look & feel (inputs, botones, popups, etc.).
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal “coming soon” (reutilizable) -->
+  <div class="modalBackdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <div class="modalHeader">
+        <h2 class="modalTitle" id="modalTitle">Coming soon</h2>
+        <button class="btn btnGhost" type="button" onclick="closeModal()">CERRAR</button>
+      </div>
+      <div class="modalBody">
+        <p class="subtle" style="margin:0;" id="modalBody">
+          Esta herramienta todavía no está publicada.
+        </p>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" type="button" onclick="closeModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">ok</div>
+
+  <script>
+    function $(id){ return document.getElementById(id); }
+
+    function updateCount(){
+      const items = $("toolList").querySelectorAll(".toolItem").length;
+      $("countBadge").textContent = `${items} tools`;
+    }
+
+    function openComingSoon(ev, name){
+      ev.preventDefault();
+      $("modalTitle").textContent = name;
+      $("modalBody").textContent = "Todavía no está lista. Cuando la agregues a la carpeta, cambiamos este item a un link real.";
+      $("modalBackdrop").classList.add("open");
+      $("modalBackdrop").setAttribute("aria-hidden", "false");
+    }
+
+    function closeModal(){
+      $("modalBackdrop").classList.remove("open");
+      $("modalBackdrop").setAttribute("aria-hidden", "true");
+    }
+
+    // Cerrar modal clickeando afuera
+    $("modalBackdrop").addEventListener("click", (e) => {
+      if (e.target === $("modalBackdrop")) closeModal();
+    });
+
+    // Escape para cerrar
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+
+    // Toast helper (para futuro)
+    function toast(msg){
+      const t = $("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => t.classList.remove("show"), 1100);
+    }
+
+    updateCount();
+  </script>
+</body>
+</html>
