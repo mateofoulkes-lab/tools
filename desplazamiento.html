@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desplazamiento alfabético · matt's tools</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+
+<body>
+  <div class="container">
+    <div class="shell">
+      <div class="topbar">
+        <h1 class="brand">Desplazamiento alfabético</h1>
+        <p class="subtle">
+          <a href="index.html" style="color:inherit; text-decoration:none;">← matt's tools</a>
+        </p>
+      </div>
+
+      <div class="content">
+        <div class="card">
+          <div class="cardTitle">
+            <span>TOOL</span>
+            <span class="badge">A–Z (opcional Ñ) · shift entero (±∞)</span>
+          </div>
+
+          <div class="row">
+            <label for="inp">TEXTO</label>
+            <input id="inp" type="text" placeholder="Escribí acá (ej: BACA)" autocomplete="off" />
+          </div>
+
+          <div class="row">
+            <label for="shift">DESPLAZAMIENTO</label>
+            <input id="shift" type="number" value="0" step="1" inputmode="numeric" />
+
+            <label class="check" title="Si está activado, el alfabeto es A B C ... N Ñ O ... Z">
+              <input id="useEnye" type="checkbox" />
+              INCLUIR Ñ
+            </label>
+
+            <div class="rightRow" style="margin-left:auto;">
+              <button class="btn btnGhost" id="clearBtn" type="button">LIMPIAR</button>
+              <button class="btn" id="copyBtn" type="button">COPIAR RESULTADO</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="cardTitle">
+              <span>SALIDA</span>
+              <span class="badge" id="alphabetInfo"></span>
+            </div>
+            <pre id="out" style="margin:0; white-space:pre-wrap; word-break:break-word; font-family:var(--mono); font-size:16px; line-height:1.35; color:var(--text);"></pre>
+          </div>
+
+          <p class="subtle" style="margin:10px 0 0;">
+            Resaltado: <span style="color:var(--warn);">amarillo</span> si NO hay K/Ñ/W/X/Y ·
+            <span style="color:var(--accent);">verde</span> si además NO hay Q/Z
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const inp = document.getElementById('inp');
+    const shiftEl = document.getElementById('shift');
+    const useEnye = document.getElementById('useEnye');
+    const out = document.getElementById('out');
+    const alphabetInfo = document.getElementById('alphabetInfo');
+    const clearBtn = document.getElementById('clearBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    function mod(n, m){
+      return ((n % m) + m) % m;
+    }
+
+    function getAlphabet(includeEnye){
+      return includeEnye
+        ? "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ"
+        : "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    }
+
+    function shiftText(text, shift, includeEnye){
+      const A = getAlphabet(includeEnye);
+      const len = A.length;
+
+      const idx = new Map();
+      for (let i = 0; i < len; i++) idx.set(A[i], i);
+
+      let res = "";
+      for (const ch of text){
+        const upper = ch.toUpperCase();
+        if (idx.has(upper)){
+          const i = idx.get(upper);
+          const j = mod(i + shift, len);
+          const shifted = A[j];
+          res += (ch === upper) ? shifted : shifted.toLowerCase();
+        } else {
+          res += ch;
+        }
+      }
+      return res;
+    }
+
+    function render(){
+      const text = inp.value ?? "";
+      const shift = parseInt(shiftEl.value, 10) || 0;
+      const includeEnye = useEnye.checked;
+
+      alphabetInfo.textContent = includeEnye
+        ? "Alfabeto: A–Z + Ñ"
+        : "Alfabeto: A–Z";
+
+      const result = shiftText(text, shift, includeEnye);
+      out.textContent = result;
+
+      // ---- LÓGICA DE RESALTADO ----
+      const upper = result.toUpperCase();
+
+      const grupoAmarillo = ['K','Ñ','W','X','Y'];
+      const grupoVerde = ['Q','Z'];
+
+      const tieneAmarillo = grupoAmarillo.some(l => upper.includes(l));
+      const tieneVerde = grupoVerde.some(l => upper.includes(l));
+
+      // reset: vuelve al color base del tema
+      out.style.color = 'var(--text)';
+
+      if (!tieneAmarillo && !tieneVerde) {
+        // Verde: no tiene K Ñ W X Y ni Q Z
+        out.style.color = 'var(--accent)';
+      } else if (!tieneAmarillo) {
+        // Amarillo: no tiene K Ñ W X Y
+        out.style.color = 'var(--warn)';
+      }
+    }
+
+    inp.addEventListener('input', render);
+    shiftEl.addEventListener('input', render);
+    useEnye.addEventListener('change', render);
+
+    clearBtn.addEventListener('click', () => {
+      inp.value = "";
+      shiftEl.value = "0";
+      useEnye.checked = false;
+      render();
+      inp.focus();
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      try{
+        await navigator.clipboard.writeText(out.textContent || "");
+        copyBtn.textContent = "COPIADO ✓";
+        setTimeout(() => (copyBtn.textContent = "COPIAR RESULTADO"), 900);
+      }catch{
+        const ta = document.createElement('textarea');
+        ta.value = out.textContent || "";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        copyBtn.textContent = "COPIADO ✓";
+        setTimeout(() => (copyBtn.textContent = "COPIAR RESULTADO"), 900);
+      }
+    });
+
+    // demo inicial
+    inp.value = "BACA";
+    render();
+  </script>
+</body>
+</html>
