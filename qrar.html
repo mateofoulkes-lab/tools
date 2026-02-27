@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Multi QR Overlay (rápido)</title>
+  <title>QR Overlay</title>
   <style>
     :root { color-scheme: dark; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b0b0b; color:#fff; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b0b0b; color:#fff; }
     header { padding: 12px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    button {
+    button, select {
       background:#1c1c1c; color:#fff; border:1px solid #333; padding:10px 12px; border-radius:10px;
     }
-    #status { opacity:.8; font-size: 13px; }
     #wrap { position: relative; width: 100vw; height: calc(100vh - 64px); display:grid; place-items:center; }
     canvas { width: 100vw; height: 100%; max-height: 100%; background:#000; }
+    #status { opacity:.8; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -24,14 +24,13 @@
   </header>
 
   <div id="wrap">
-    <canvas id="view"></canvas>
+    <canvas id="c"></canvas>
   </div>
 
-  <!-- Fallback single-QR -->
+  <!-- jsQR desde CDN -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
   <script>
-    // ===== 1) “DB” hardcodeada: QR_ID -> texto =====
+    // 2) "Base de datos" hardcodeada: QR_ID -> texto
     const DB = {
       "MOTZA": "Motza — Entrada al arroyo (Israel)",
       "FRIEDBERG": "Friedberg — Pasaje subterráneo (Alemania)",
@@ -41,120 +40,128 @@
       "BA_PALERMO": "Buenos Aires — Palermo (moderna)"
     };
 
-    // ===== 2) UI + video =====
-    const btnStart = document.getElementById("btnStart");
-    const btnFlip  = document.getElementById("btnFlip");
     const statusEl = document.getElementById("status");
-
-    const viewCanvas = document.getElementById("view");
-    const vctx = viewCanvas.getContext("2d", { willReadFrequently: false });
-
-    // Canvas de detección (chico = rápido)
-    const detectCanvas = document.createElement("canvas");
-    const dctx = detectCanvas.getContext("2d", { willReadFrequently: true });
+    const btnStart = document.getElementById("btnStart");
+    const btnFlip = document.getElementById("btnFlip");
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const video = document.createElement("video");
-    video.setAttribute("playsinline", "");
+    video.setAttribute("playsinline", ""); // iOS: no fullscreen
 
     let stream = null;
+    let facingMode = "environment"; // cámara trasera por default
     let rafId = null;
-    let facingMode = "environment";
+    let lastHit = { id: null, t: 0 };
 
-    // Detector nativo multi-QR (si existe)
-    let nativeDetector = null;
-    const hasBarcodeDetector = ("BarcodeDetector" in window);
+    function setStatus(msg) { statusEl.textContent = msg; }
 
-    function setStatus(msg){ statusEl.textContent = msg; }
+    function resizeCanvasToVideo() {
+      const vw = video.videoWidth || 1280;
+      const vh = video.videoHeight || 720;
+      canvas.width = vw;
+      canvas.height = vh;
+    }
 
-    function stopCamera(){
+    async function startCamera() {
+      stopCamera();
+
+      try {
+        // iOS Safari exige HTTPS (GitHub Pages lo es) y gesto de usuario para getUserMedia.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        resizeCanvasToVideo();
+        btnFlip.disabled = false;
+        setStatus("Cámara activa. Buscando QR…");
+
+        tick();
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: no pude acceder a la cámara. ¿Permiso denegado?");
+      }
+    }
+
+    function stopCamera() {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = null;
-      if (stream){
+
+      if (stream) {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
       }
     }
 
-    async function startCamera(){
-      stopCamera();
-      try{
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facingMode } },
-          audio: false
-        });
-        video.srcObject = stream;
-        await video.play();
-
-        // Tamaño canvas de vista = tamaño real de video (para overlay preciso)
-        viewCanvas.width  = video.videoWidth  || 1280;
-        viewCanvas.height = video.videoHeight || 720;
-
-        // Tamaño de detección (downscale):
-        // - cuanto más chico, más rápido, pero más propenso a fallar en QRs chiquitos.
-        setDetectSize(viewCanvas.width, viewCanvas.height);
-
-        // Inicializa BarcodeDetector para QR
-        if (hasBarcodeDetector){
-          try{
-            nativeDetector = new BarcodeDetector({ formats: ["qr_code"] });
-          } catch (e){
-            // Si el constructor falla, lo anulamos y usamos fallback
-            nativeDetector = null;
-          }
-        }
-
-        btnFlip.disabled = false;
-
-        if (nativeDetector) {
-          setStatus("Cámara activa (multi-QR + rápido). Buscando…");
-        } else {
-          setStatus("Cámara activa (fallback 1 QR). Buscando…");
-        }
-
-        tick();
-      } catch(err){
-        console.error(err);
-        setStatus("Error accediendo a cámara. ¿Permisos denegados?");
-      }
-    }
-
-    function setDetectSize(vw, vh){
-      // Objetivo: ~ 640 px de ancho de análisis (rápido) manteniendo aspect ratio.
-      const targetW = 640;
-      const scale = Math.min(1, targetW / vw);
-      detectCanvas.width  = Math.max(320, Math.round(vw * scale));
-      detectCanvas.height = Math.max(240, Math.round(vh * scale));
-    }
-
-    btnStart.addEventListener("click", startCamera);
-    btnFlip.addEventListener("click", async () => {
-      facingMode = (facingMode === "environment") ? "user" : "environment";
-      setStatus("Cambiando cámara…");
-      await startCamera();
-    });
-
-    window.addEventListener("pagehide", stopCamera);
-
-    // ===== 3) Dibujo helpers =====
-    function roundRect(ctx, x, y, w, h, r){
-      const rr = Math.min(r, w/2, h/2);
+    function drawOverlayForQR(qr) {
+      // Dibuja un contorno del QR (opcional, pero útil)
+      ctx.lineWidth = Math.max(2, Math.round(canvas.width / 400));
+      ctx.strokeStyle = "rgba(0,255,200,0.9)";
       ctx.beginPath();
-      ctx.moveTo(x + rr, y);
-      ctx.arcTo(x + w, y, x + w, y + h, rr);
-      ctx.arcTo(x + w, y + h, x, y + h, rr);
-      ctx.arcTo(x, y + h, x, y, rr);
-      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.moveTo(qr.location.topLeftCorner.x, qr.location.topLeftCorner.y);
+      ctx.lineTo(qr.location.topRightCorner.x, qr.location.topRightCorner.y);
+      ctx.lineTo(qr.location.bottomRightCorner.x, qr.location.bottomRightCorner.y);
+      ctx.lineTo(qr.location.bottomLeftCorner.x, qr.location.bottomLeftCorner.y);
       ctx.closePath();
+      ctx.stroke();
+
+      const id = (qr.data || "").trim();
+      const label = DB[id] ?? `ID desconocida: ${id}`;
+
+      // Punto de anclaje: cerca del borde superior del QR
+      const ax = qr.location.topLeftCorner.x;
+      const ay = qr.location.topLeftCorner.y;
+
+      // Fondo del texto
+      const fontSize = Math.max(18, Math.round(canvas.width / 28));
+      ctx.font = `700 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.textBaseline = "top";
+
+      const padding = Math.round(fontSize * 0.5);
+      const maxWidth = Math.round(canvas.width * 0.85);
+
+      // Medición simple + wrap (2 líneas máx)
+      const lines = wrapText(ctx, label, maxWidth, 2);
+      const textW = Math.max(...lines.map(l => ctx.measureText(l).width));
+      const textH = lines.length * (fontSize + 6);
+
+      // Si queda fuera de pantalla, lo movemos abajo/derecha
+      let x = ax;
+      let y = ay - (textH + padding * 2 + 8);
+      if (y < 0) y = ay + 8;
+      if (x + textW + padding * 2 > canvas.width) x = canvas.width - (textW + padding * 2) - 8;
+      if (x < 0) x = 8;
+
+      // Rectángulo semi-transparente
+      ctx.fillStyle = "rgba(0,0,0,0.65)";
+      roundRect(ctx, x, y, textW + padding * 2, textH + padding * 2, 14);
+      ctx.fill();
+
+      // Texto
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      let ty = y + padding;
+      for (const line of lines) {
+        ctx.fillText(line, x + padding, ty);
+        ty += fontSize + 6;
+      }
+
+      // estado “pega” la última lectura para que no parpadee
+      lastHit = { id, t: performance.now() };
+      setStatus(`QR: ${id}`);
     }
 
-    function wrapText(ctx, text, maxWidth, maxLines){
-      const words = (text || "").split(/\s+/).filter(Boolean);
+    function wrapText(context, text, maxWidth, maxLines) {
+      const words = text.split(/\s+/);
       const lines = [];
       let line = "";
 
-      for (const w of words){
+      for (const w of words) {
         const test = line ? (line + " " + w) : w;
-        if (ctx.measureText(test).width <= maxWidth){
+        if (context.measureText(test).width <= maxWidth) {
           line = test;
         } else {
           if (line) lines.push(line);
@@ -164,206 +171,53 @@
       }
       if (line) lines.push(line);
 
-      if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length){
+      // Si sobran palabras y ya llegamos al máximo, agregamos "…"
+      if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
         lines[lines.length - 1] = lines[lines.length - 1].replace(/\s+$/, "") + "…";
       }
       return lines;
     }
 
-    function drawPolygon(ctx, pts){
-      if (!pts || pts.length < 4) return;
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
-      ctx.closePath();
-      ctx.stroke();
+    function roundRect(context, x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      context.beginPath();
+      context.moveTo(x + rr, y);
+      context.arcTo(x + w, y, x + w, y + h, rr);
+      context.arcTo(x + w, y + h, x, y + h, rr);
+      context.arcTo(x, y + h, x, y, rr);
+      context.arcTo(x, y, x + w, y, rr);
+      context.closePath();
     }
 
-    // Convierte coords desde el canvas chico al canvas grande
-    function mapPoint(p, scaleX, scaleY){
-      return { x: p.x * scaleX, y: p.y * scaleY };
-    }
+    function tick() {
+      // Dibuja el frame actual de video al canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    function angleFromPoints(a, b){
-      return Math.atan2(b.y - a.y, b.x - a.x);
-    }
-
-    // Dibuja texto rotado “pegado” al QR
-    function drawRotatedLabel(ctx, label, corners){
-      // corners: [tl,tr,br,bl]
-      const tl = corners[0];
-      const tr = corners[1];
-      const bl = corners[3];
-
-      const angle = angleFromPoints(tl, tr);
-
-      // Anchor: un poquito “arriba” del borde superior del QR, en su sistema rotado
-      // Calculamos un offset normal al borde superior (vector perpendicular)
-      const dx = tr.x - tl.x;
-      const dy = tr.y - tl.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len; // normal “hacia arriba” (depende de orden, pero sirve)
-      const ny =  dx / len;
-
-      const qrSizeApprox = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-      const fontSize = Math.max(18, Math.round(qrSizeApprox / 6)); // escala con tamaño del QR
-
-      ctx.save();
-      ctx.translate(tl.x, tl.y);
-      ctx.rotate(angle);
-
-      ctx.font = `800 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.textBaseline = "top";
-
-      const maxWidth = Math.min(viewCanvas.width * 0.8, Math.max(280, qrSizeApprox * 3));
-      const lines = wrapText(ctx, label, maxWidth, 2);
-      const textW = Math.max(...lines.map(l => ctx.measureText(l).width));
-      const lineH = fontSize + 6;
-      const textH = lines.length * lineH;
-
-      const pad = Math.round(fontSize * 0.55);
-
-      // En coords rotadas, el “arriba” local es -Y.
-      // Usamos la normal del borde para movernos fuera del QR en el canvas global,
-      // pero como ya rotamos el sistema, acá nos basta mover en -Y.
-      // Para robustez, movemos por un offset fijo en -Y.
-      const offset = Math.round(fontSize * 1.2);
-      let x = 0;
-      let y = - (textH + pad*2 + offset);
-
-      // Si se va muy arriba, lo mandamos abajo del QR (usando altura aproximada del QR)
-      const qrHeightApprox = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-      if ((tl.y + y) < 0) {
-        y = Math.round(qrHeightApprox + offset);
-      }
-
-      // Fondo
-      ctx.fillStyle = "rgba(0,0,0,0.65)";
-      roundRect(ctx, x, y, textW + pad*2, textH + pad*2, 14);
-      ctx.fill();
-
-      // Texto
-      ctx.fillStyle = "rgba(255,255,255,0.95)";
-      let ty = y + pad;
-      for (const line of lines){
-        ctx.fillText(line, x + pad, ty);
-        ty += lineH;
-      }
-
-      ctx.restore();
-    }
-
-    function normalizeCornersFromNative(cornerPoints){
-      // cornerPoints viene como array de points, pero el orden puede variar.
-      // Heurística: obtener TL, TR, BR, BL usando sum/diff.
-      const pts = cornerPoints.map(p => ({x:p.x, y:p.y}));
-      let tl, tr, br, bl;
-      let minSum=Infinity, maxSum=-Infinity, minDiff=Infinity, maxDiff=-Infinity;
-      for (const p of pts){
-        const sum = p.x + p.y;
-        const diff = p.x - p.y;
-        if (sum < minSum){ minSum=sum; tl=p; }
-        if (sum > maxSum){ maxSum=sum; br=p; }
-        if (diff < minDiff){ minDiff=diff; bl=p; }
-        if (diff > maxDiff){ maxDiff=diff; tr=p; }
-      }
-      return [tl, tr, br, bl];
-    }
-
-    // ===== 4) Detección multi vs fallback =====
-    async function detectQrs(){
-      // 1) bajamos frame al canvas chico
-      dctx.drawImage(video, 0, 0, detectCanvas.width, detectCanvas.height);
-
-      const scaleX = viewCanvas.width / detectCanvas.width;
-      const scaleY = viewCanvas.height / detectCanvas.height;
-
-      // 2) multi-QR con BarcodeDetector
-      if (nativeDetector){
-        try{
-          const bitmap = await createImageBitmap(detectCanvas);
-          const barcodes = await nativeDetector.detect(bitmap);
-          bitmap.close?.();
-
-          // barcodes: [{ rawValue, cornerPoints, ... }, ...]
-          return barcodes.map(b => ({
-            id: (b.rawValue || "").trim(),
-            corners: normalizeCornersFromNative(b.cornerPoints || []).map(p => mapPoint(p, scaleX, scaleY))
-          })).filter(x => x.id && x.corners[0] && x.corners[1] && x.corners[2] && x.corners[3]);
-        } catch (e){
-          // Si el detector nativo falla por algún motivo, caemos al fallback
-          console.warn("BarcodeDetector falló, uso fallback jsQR:", e);
-          nativeDetector = null;
-        }
-      }
-
-      // 3) fallback: jsQR (solo 1 QR)
-      const img = dctx.getImageData(0, 0, detectCanvas.width, detectCanvas.height);
+      // Extrae pixels para decodificar
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
-      if (!qr) return [];
 
-      const loc = qr.location;
-      const cornersSmall = [
-        {x: loc.topLeftCorner.x,     y: loc.topLeftCorner.y},
-        {x: loc.topRightCorner.x,    y: loc.topRightCorner.y},
-        {x: loc.bottomRightCorner.x, y: loc.bottomRightCorner.y},
-        {x: loc.bottomLeftCorner.x,  y: loc.bottomLeftCorner.y},
-      ];
-      return [{
-        id: (qr.data || "").trim(),
-        corners: cornersSmall.map(p => mapPoint(p, scaleX, scaleY))
-      }];
-    }
-
-    // ===== 5) Loop principal =====
-    let lastSeenAt = 0;
-    function clearAndDrawVideo(){
-      vctx.drawImage(video, 0, 0, viewCanvas.width, viewCanvas.height);
-    }
-
-    async function tick(){
-      clearAndDrawVideo();
-
-      // Detectamos cada N frames para ir más livianos (ajustable)
-      // En vez de contar frames, usamos tiempo.
-      const now = performance.now();
-      const intervalMs = 80; // ~12.5 fps de detección (rápido sin matar CPU)
-      const shouldDetect = (now - lastSeenAt) >= intervalMs;
-
-      let detections = [];
-      if (shouldDetect){
-        lastSeenAt = now;
-        detections = await detectQrs();
-      }
-
-      // Dibujamos overlays de lo detectado
-      if (detections.length){
-        vctx.lineWidth = Math.max(2, Math.round(viewCanvas.width / 500));
-        vctx.strokeStyle = "rgba(0,255,200,0.9)";
-
-        for (const det of detections){
-          const label = DB[det.id] ?? `ID desconocida: ${det.id}`;
-
-          // Contorno del QR
-          drawPolygon(vctx, det.corners);
-
-          // Texto rotado
-          drawRotatedLabel(vctx, label, det.corners);
-        }
-
-        setStatus(nativeDetector
-          ? `Detectados: ${detections.length}`
-          : `Detectado: ${detections[0].id} (fallback 1 QR)`
-        );
+      if (qr) {
+        drawOverlayForQR(qr);
       } else {
-        setStatus(nativeDetector
-          ? "Buscando QRs… (multi)"
-          : "Buscando QR… (fallback 1)"
-        );
+        // Si hace poco había un QR, mantenemos status sin “parpadeo”
+        const dt = performance.now() - lastHit.t;
+        if (dt > 800) setStatus("Buscando QR…");
       }
 
       rafId = requestAnimationFrame(tick);
     }
+
+    btnStart.addEventListener("click", startCamera);
+
+    btnFlip.addEventListener("click", async () => {
+      facingMode = (facingMode === "environment") ? "user" : "environment";
+      setStatus("Cambiando cámara…");
+      await startCamera();
+    });
+
+    // Limpieza al cerrar
+    window.addEventListener("pagehide", stopCamera);
   </script>
 </body>
 </html>
