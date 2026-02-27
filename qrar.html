@@ -38,29 +38,29 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
-    // ===== Datos hardcodeados =====
-    // ID (string) -> { producto, precio }
+    // ===== Datos hardcodeados (ahora con TALLES) =====
+    // ID (string) -> { producto, precio, talles[] }
     const DB = {
-      "1":  { producto: "Remera básica",        precio: 15.99 },
-      "2":  { producto: "Pantalón jean",        precio: 39.90 },
-      "3":  { producto: "Campera deportiva",    precio: 59.50 },
-      "4":  { producto: "Buzo con capucha",     precio: 45.00 },
-      "5":  { producto: "Camisa formal",        precio: 32.75 },
-      "6":  { producto: "Zapatillas urbanas",   precio: 68.40 },
-      "7":  { producto: "Vestido casual",       precio: 54.30 },
-      "8":  { producto: "Pollera midi",         precio: 28.90 },
-      "9":  { producto: "Short deportivo",      precio: 22.10 },
-      "10": { producto: "Sweater tejido",       precio: 47.60 },
-      "11": { producto: "Chaleco acolchado",    precio: 52.00 },
-      "12": { producto: "Blusa estampada",      precio: 26.80 },
-      "13": { producto: "Jogging",              precio: 34.20 },
-      "14": { producto: "Campera de cuero",     precio: 120.00 },
-      "15": { producto: "Top deportivo",        precio: 19.99 },
-      "16": { producto: "Medias (pack x3)",     precio: 9.50 },
-      "17": { producto: "Bufanda",              precio: 14.75 },
-      "18": { producto: "Gorra",                precio: 12.40 },
-      "19": { producto: "Traje de baño",        precio: 29.99 },
-      "20": { producto: "Abrigo largo",         precio: 89.90 },
+      "1":  { producto: "Remera básica",        precio: 15.99,  talles: ["XS","S","M","L","XL"] },
+      "2":  { producto: "Pantalón jean",        precio: 39.90,  talles: ["38","40","42","44","46"] },
+      "3":  { producto: "Campera deportiva",    precio: 59.50,  talles: ["S","M","L","XL"] },
+      "4":  { producto: "Buzo con capucha",     precio: 45.00,  talles: ["S","M","L","XL"] },
+      "5":  { producto: "Camisa formal",        precio: 32.75,  talles: ["S","M","L","XL"] },
+      "6":  { producto: "Zapatillas urbanas",   precio: 68.40,  talles: ["39","40","41","42","43","44"] },
+      "7":  { producto: "Vestido casual",       precio: 54.30,  talles: ["XS","S","M","L"] },
+      "8":  { producto: "Pollera midi",         precio: 28.90,  talles: ["XS","S","M","L"] },
+      "9":  { producto: "Short deportivo",      precio: 22.10,  talles: ["S","M","L","XL"] },
+      "10": { producto: "Sweater tejido",       precio: 47.60,  talles: ["S","M","L","XL"] },
+      "11": { producto: "Chaleco acolchado",    precio: 52.00,  talles: ["S","M","L","XL"] },
+      "12": { producto: "Blusa estampada",      precio: 26.80,  talles: ["XS","S","M","L"] },
+      "13": { producto: "Jogging",              precio: 34.20,  talles: ["S","M","L","XL"] },
+      "14": { producto: "Campera de cuero",     precio: 120.00, talles: ["S","M","L","XL"] },
+      "15": { producto: "Top deportivo",        precio: 19.99,  talles: ["XS","S","M","L"] },
+      "16": { producto: "Medias (pack x3)",     precio: 9.50,   talles: ["Único"] },
+      "17": { producto: "Bufanda",              precio: 14.75,  talles: ["Único"] },
+      "18": { producto: "Gorra",                precio: 12.40,  talles: ["Único"] },
+      "19": { producto: "Traje de baño",        precio: 29.99,  talles: ["S","M","L","XL"] },
+      "20": { producto: "Abrigo largo",         precio: 89.90,  talles: ["S","M","L","XL"] },
     };
 
     const wrapEl = document.getElementById("wrap");
@@ -123,9 +123,22 @@
 
     window.addEventListener("resize", fitCanvasCss);
 
+    async function tryLockPortrait(){
+      // Mantener UI horizontal “siempre” (cuando el navegador lo permite)
+      try{
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("portrait");
+        }
+      } catch(_) {
+        // Ignorar: muchos navegadores no lo permiten sin “instalar” PWA, o lo bloquean en iOS.
+      }
+    }
+
     async function startCamera(){
       stopCamera();
       try{
+        await tryLockPortrait();
+
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: facingMode } },
           audio: false
@@ -216,47 +229,60 @@
       ctx.stroke();
     }
 
-    function drawProductLabelUpright(ctx, producto, precioNumber, corners){
-      // Texto SIN rotación (alineado a pantalla)
+    function formatPrice(num){
+      // Si querés estilo Argentina (coma): descomentá el toLocaleString
+      // return "$" + Number(num).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return "$" + Number(num).toFixed(2);
+    }
+
+    function drawProductCardUpright(ctx, row, corners){
+      // Texto SIN rotación (horizontal a pantalla)
       const [tl, tr, br, bl] = corners;
 
-      // Centro del QR para anclar
       const cx = (tl.x + tr.x + br.x + bl.x) / 4;
-      const cy = (tl.y + tr.y + br.y + bl.y) / 4;
+      const topY = Math.min(tl.y, tr.y);
+      const bottomY = Math.max(bl.y, br.y);
 
-      // Tamaño aproximado del QR
       const w = Math.hypot(tr.x - tl.x, tr.y - tl.y);
       const h = Math.hypot(bl.x - tl.x, bl.y - tl.y);
       const size = Math.max(1, Math.min(w, h));
 
-      const productFont = Math.max(16, Math.round(size / 5.5));
+      const productFont = Math.max(16, Math.round(size / 5.7));
       const priceFont   = Math.max(22, Math.round(productFont * 1.25));
+      const sizesFont   = Math.max(14, Math.round(productFont * 0.85));
       const pad = Math.round(productFont * 0.7);
 
-      // Formato precio
-      const priceStr = "$" + Number(precioNumber).toFixed(2);
+      const producto = row?.producto ?? "ID desconocida";
+      const priceStr = row ? formatPrice(row.precio) : "";
+      const sizesStr = row?.talles?.length ? row.talles.join(", ") : "";
 
-      // Medimos con el mayor (precio) para ancho base; producto puede ser más largo
       ctx.save();
+      ctx.textBaseline = "top";
 
+      // Medimos ancho máximo para caja
       ctx.font = `700 ${productFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const productW = ctx.measureText(producto).width;
 
       ctx.font = `900 ${priceFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const priceW = ctx.measureText(priceStr).width;
 
-      const boxW = Math.ceil(Math.max(productW, priceW) + pad * 2);
-      const boxH = Math.ceil((productFont + 8) + (priceFont + 4) + pad * 2);
+      ctx.font = `700 ${sizesFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      const sizesW = ctx.measureText(sizesStr).width;
 
-      // Preferimos arriba del QR, si no hay lugar: abajo
+      const boxW = Math.ceil(Math.max(productW, priceW, sizesW) + pad * 2);
+
+      const line1H = productFont + 8;
+      const line2H = priceFont + 6;
+      const line3H = sizesStr ? (sizesFont + 2) : 0;
+      const boxH = Math.ceil(pad * 2 + line1H + line2H + line3H);
+
+      // Arriba del QR, si no entra: abajo
       let x = Math.round(cx - boxW / 2);
-      let y = Math.round((Math.min(tl.y, tr.y) - boxH - 10));
+      let y = Math.round(topY - boxH - 10);
+      if (y < 6) y = Math.round(bottomY + 10);
 
-      if (y < 6) y = Math.round((Math.max(bl.y, br.y) + 10));
-
-      // Clamp horizontal
+      // Clamp
       x = Math.max(6, Math.min(x, viewCanvas.width - boxW - 6));
-      // Clamp vertical (por si queda fuera)
       y = Math.max(6, Math.min(y, viewCanvas.height - boxH - 6));
 
       // Caja
@@ -267,14 +293,21 @@
       // Producto (arriba)
       ctx.fillStyle = "rgba(255,255,255,0.95)";
       ctx.font = `700 ${productFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.textBaseline = "top";
       ctx.fillText(producto, x + pad, y + pad);
 
-      // Precio (abajo, centrado, más grande, bold)
+      // Precio (centrado, más grande, bold)
       ctx.font = `900 ${priceFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const px = x + (boxW - ctx.measureText(priceStr).width) / 2;
-      const py = y + pad + productFont + 10;
+      const py = y + pad + line1H;
       ctx.fillText(priceStr, px, py);
+
+      // Talles (debajo del precio, centrado)
+      if (sizesStr){
+        ctx.font = `700 ${sizesFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        const sx = x + (boxW - ctx.measureText(sizesStr).width) / 2;
+        const sy = py + line2H - 2;
+        ctx.fillText(sizesStr, sx, sy);
+      }
 
       ctx.restore();
     }
@@ -325,12 +358,11 @@
     function tick(){
       vctx.drawImage(video, 0, 0, viewCanvas.width, viewCanvas.height);
 
-      // detección por intervalos
       const now = performance.now();
       const intervalMs = 80;
       if (now - lastDetectAt >= intervalMs){
         lastDetectAt = now;
-        detect(); // sin await
+        detect();
       }
 
       if (lastDetections.length){
@@ -342,10 +374,9 @@
 
           const row = DB[d.id];
           if (row){
-            drawProductLabelUpright(vctx, row.producto, row.precio, d.corners);
+            drawProductCardUpright(vctx, row, d.corners);
           } else {
-            // si querés: mostrar algo cuando la ID no existe
-            drawProductLabelUpright(vctx, `ID desconocida: ${d.id}`, 0, d.corners);
+            drawProductCardUpright(vctx, { producto: `ID desconocida: ${d.id}`, precio: 0, talles: [] }, d.corners);
           }
         }
 
