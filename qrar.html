@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Matt's Tools · QR AR</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .grid{ display:grid; grid-template-columns:1.4fr .9fr; gap:14px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+    .camWrap{
+      position:relative;
+      overflow:hidden;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:#050808;
+      aspect-ratio:16/10;
+    }
+    #camera{ width:100%; height:100%; object-fit:cover; display:block; }
+    #overlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    .arCard{
+      position:absolute;
+      min-width:220px;
+      max-width:min(360px, 85%);
+      transform:translate(-50%, calc(-100% - 16px));
+      background:rgba(8,12,13,.85);
+      border:1px solid rgba(53,255,122,.45);
+      box-shadow:0 10px 24px rgba(0,0,0,.45);
+      border-radius:12px;
+      padding:10px 12px;
+      backdrop-filter: blur(4px);
+      display:none;
+      z-index:2;
+    }
+    .arCard.open{ display:block; }
+    .arCard h3{ margin:0 0 6px; font-size:15px; }
+    .arCard p{ margin:3px 0; font-size:12px; color:var(--text-dim); }
+    .help{ margin:0; font-size:12px; color:var(--text-dim); line-height:1.45; }
+    .mono{ font-family:var(--font-mono); }
+    table{
+      width:100%; border-collapse:collapse; font-size:12px;
+      border:1px solid rgba(255,255,255,.12); border-radius:10px; overflow:hidden;
+    }
+    th, td{ padding:8px; border-bottom:1px solid rgba(255,255,255,.08); text-align:left; }
+    th{ font-family:var(--font-mono); color:var(--accent); font-size:11px; }
+    tr:last-child td{ border-bottom:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="shell">
+      <div class="topbar">
+        <h1 class="brand">QR AR</h1>
+        <p class="subtle">Escaneá un QR y mostrale en cámara la data enriquecida de una tabla local.</p>
+      </div>
+
+      <div class="content grid">
+        <div class="card">
+          <div class="cardTitle">
+            <span>LECTOR EN VIVO</span>
+            <span class="badge badgeAccent" id="statusBadge">idle</span>
+          </div>
+          <div class="camWrap">
+            <video id="camera" autoplay playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div class="arCard" id="arCard">
+              <h3 id="arTitle">Sin lectura</h3>
+              <p id="arDesc">Apuntá la cámara a un QR válido.</p>
+              <p class="mono" id="arMeta">-</p>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn" id="startBtn" type="button">Iniciar cámara</button>
+            <button class="btn btnGhost" id="stopBtn" type="button">Detener</button>
+            <a class="btn btnGhost" href="index.html">Volver</a>
+          </div>
+          <p class="help" id="log">Listo para iniciar.</p>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">
+            <span>TABLA DEMO</span>
+            <span class="badge">JSON local</span>
+          </div>
+          <p class="help">El contenido QR se usa como clave exacta para buscar en la tabla. Ejemplo: <span class="mono">MAT-001</span>.</p>
+          <table>
+            <thead>
+              <tr><th>ID QR</th><th>NOMBRE</th><th>INFO</th></tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DB = {
+      "MAT-001": { nombre: "Sensor Norte", info: "Temperatura estable · 23.4°C" },
+      "MAT-002": { nombre: "Válvula B17", info: "Último service: 2026-01-19" },
+      "MAT-003": { nombre: "Tablero C", info: "Estado: operativo · batería 89%" }
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const video = $("camera");
+    const canvas = $("overlay");
+    const ctx = canvas.getContext("2d");
+    const arCard = $("arCard");
+    const statusBadge = $("statusBadge");
+
+    let stream = null;
+    let running = false;
+    let rafId = null;
+    let detector = null;
+
+    function setLog(msg){ $("log").textContent = msg; }
+
+    function fillTable(){
+      $("tableBody").innerHTML = Object.entries(DB)
+        .map(([id, row]) => `<tr><td class="mono">${id}</td><td>${row.nombre}</td><td>${row.info}</td></tr>`)
+        .join("");
+    }
+
+    function drawBox(box){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!box) return;
+      ctx.strokeStyle = "#35ff7a";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+    }
+
+    function placeCard(box, qrText){
+      const rec = DB[qrText];
+      if (!rec){
+        $("arTitle").textContent = "QR sin registro";
+        $("arDesc").textContent = qrText;
+        $("arMeta").textContent = "No existe en la tabla local.";
+      } else {
+        $("arTitle").textContent = rec.nombre;
+        $("arDesc").textContent = rec.info;
+        $("arMeta").textContent = `ID: ${qrText}`;
+      }
+
+      if (box){
+        const x = box.x + (box.width / 2);
+        const y = box.y;
+        arCard.style.left = `${x}px`;
+        arCard.style.top = `${y}px`;
+      } else {
+        arCard.style.left = "50%";
+        arCard.style.top = "58%";
+      }
+      arCard.classList.add("open");
+    }
+
+    async function scanLoop(){
+      if (!running) return;
+
+      if (video.videoWidth > 0 && video.videoHeight > 0){
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight){
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes.length > 0){
+            const qr = barcodes[0];
+            const box = qr.boundingBox || null;
+            drawBox(box);
+            placeCard(box, qr.rawValue || "(vacío)");
+            statusBadge.textContent = "tracking";
+            setLog(`Detectado: ${qr.rawValue || "(vacío)"}`);
+          } else {
+            drawBox(null);
+            statusBadge.textContent = "scanning";
+          }
+        } catch (err){
+          setLog(`Error de detección: ${err.message}`);
+          statusBadge.textContent = "error";
+        }
+      }
+
+      rafId = requestAnimationFrame(scanLoop);
+    }
+
+    async function startCamera(){
+      if (!("BarcodeDetector" in window)){
+        setLog("Tu navegador no soporta BarcodeDetector. Probá Chrome/Edge en HTTPS o localhost.");
+        statusBadge.textContent = "unsupported";
+        return;
+      }
+
+      try {
+        detector = new BarcodeDetector({ formats: ["qr_code"] });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        running = true;
+        statusBadge.textContent = "scanning";
+        setLog("Cámara iniciada. Buscando códigos QR...");
+        scanLoop();
+      } catch (err){
+        setLog(`No se pudo iniciar la cámara: ${err.message}`);
+        statusBadge.textContent = "error";
+      }
+    }
+
+    function stopCamera(){
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      if (stream){
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      drawBox(null);
+      arCard.classList.remove("open");
+      statusBadge.textContent = "idle";
+      setLog("Cámara detenida.");
+    }
+
+    $("startBtn").addEventListener("click", startCamera);
+    $("stopBtn").addEventListener("click", stopCamera);
+    fillTable();
+  </script>
+</body>
+</html>
