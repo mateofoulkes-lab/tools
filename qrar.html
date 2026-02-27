@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>QR Overlay (rápido, multi si hay)</title>
+  <title>QR Overlay (multi si hay)</title>
   <style>
     :root { color-scheme: dark; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b0b0b; color:#fff; }
@@ -11,7 +11,6 @@
     button { background:#1c1c1c; color:#fff; border:1px solid #333; padding:10px 12px; border-radius:10px; }
     #status { opacity:.8; font-size: 13px; }
 
-    /* Contenedor que centra el canvas y evita estirado */
     #wrap {
       position: relative;
       width: 100vw;
@@ -21,12 +20,7 @@
       overflow: hidden;
       background: #000;
     }
-
-    /* El canvas NO fuerza height=100%. JS ajusta el size manteniendo ratio */
-    canvas {
-      background: #000;
-      touch-action: none;
-    }
+    canvas { background:#000; touch-action:none; }
   </style>
 </head>
 <body>
@@ -44,14 +38,29 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
-    // ===== DB hardcodeada =====
+    // ===== Datos hardcodeados =====
+    // ID (string) -> { producto, precio }
     const DB = {
-      "MOTZA": "Motza — Entrada al arroyo (Israel)",
-      "FRIEDBERG": "Friedberg — Pasaje subterráneo (Alemania)",
-      "SPEYER": "Speyer — Acceso a mikve medieval (Alemania)",
-      "SIRACUSA": "Siracusa — Catacumbas / acceso antiguo (Italia)",
-      "BALTIMORE": "Baltimore — Mikve histórica (EE.UU.)",
-      "BA_PALERMO": "Buenos Aires — Palermo (moderna)"
+      "1":  { producto: "Remera básica",        precio: 15.99 },
+      "2":  { producto: "Pantalón jean",        precio: 39.90 },
+      "3":  { producto: "Campera deportiva",    precio: 59.50 },
+      "4":  { producto: "Buzo con capucha",     precio: 45.00 },
+      "5":  { producto: "Camisa formal",        precio: 32.75 },
+      "6":  { producto: "Zapatillas urbanas",   precio: 68.40 },
+      "7":  { producto: "Vestido casual",       precio: 54.30 },
+      "8":  { producto: "Pollera midi",         precio: 28.90 },
+      "9":  { producto: "Short deportivo",      precio: 22.10 },
+      "10": { producto: "Sweater tejido",       precio: 47.60 },
+      "11": { producto: "Chaleco acolchado",    precio: 52.00 },
+      "12": { producto: "Blusa estampada",      precio: 26.80 },
+      "13": { producto: "Jogging",              precio: 34.20 },
+      "14": { producto: "Campera de cuero",     precio: 120.00 },
+      "15": { producto: "Top deportivo",        precio: 19.99 },
+      "16": { producto: "Medias (pack x3)",     precio: 9.50 },
+      "17": { producto: "Bufanda",              precio: 14.75 },
+      "18": { producto: "Gorra",                precio: 12.40 },
+      "19": { producto: "Traje de baño",        precio: 29.99 },
+      "20": { producto: "Abrigo largo",         precio: 89.90 },
     };
 
     const wrapEl = document.getElementById("wrap");
@@ -75,7 +84,7 @@
     let detector = null;          // BarcodeDetector si existe
     let useNative = false;        // true si BarcodeDetector activo
     let detectBusy = false;       // lock anti solapado
-    let lastDetections = [];      // cache de resultados para dibujar cada frame
+    let lastDetections = [];      // cache para dibujar
     let lastDetectAt = 0;
 
     function setStatus(msg){ statusEl.textContent = msg; }
@@ -94,13 +103,12 @@
     }
 
     function setDetectSize(vw, vh){
-      const targetW = 640; // ajustable: 480 más rápido, 800 más sensible
+      const targetW = 640; // 480 más rápido, 800 más sensible
       const scale = Math.min(1, targetW / vw);
       detectCanvas.width  = Math.max(320, Math.round(vw * scale));
       detectCanvas.height = Math.max(240, Math.round(vh * scale));
     }
 
-    // Ajusta el tamaño VISUAL del canvas manteniendo aspect ratio (sin estirar)
     function fitCanvasCss(){
       const cw = viewCanvas.width, ch = viewCanvas.height;
       if (!cw || !ch) return;
@@ -109,11 +117,8 @@
       const maxH = wrapEl.clientHeight;
 
       const scale = Math.min(maxW / cw, maxH / ch);
-      const cssW = Math.round(cw * scale);
-      const cssH = Math.round(ch * scale);
-
-      viewCanvas.style.width  = cssW + "px";
-      viewCanvas.style.height = cssH + "px";
+      viewCanvas.style.width  = Math.round(cw * scale) + "px";
+      viewCanvas.style.height = Math.round(ch * scale) + "px";
     }
 
     window.addEventListener("resize", fitCanvasCss);
@@ -129,14 +134,10 @@
         video.srcObject = stream;
         await video.play();
 
-        // Canvas interno = resolución real del video (para overlay perfecto)
         viewCanvas.width  = video.videoWidth  || 1280;
         viewCanvas.height = video.videoHeight || 720;
 
-        // Canvas de detección downscale
         setDetectSize(viewCanvas.width, viewCanvas.height);
-
-        // Ajuste visual sin estirar
         fitCanvasCss();
 
         // Intentar BarcodeDetector (multi-QR)
@@ -144,7 +145,6 @@
         detector = null;
         if ("BarcodeDetector" in window){
           try {
-            // Algunos navegadores soportan getSupportedFormats
             if (BarcodeDetector.getSupportedFormats) {
               const fmts = await BarcodeDetector.getSupportedFormats();
               if (fmts.includes("qr_code")) {
@@ -162,8 +162,7 @@
         }
 
         btnFlip.disabled = false;
-        setStatus(useNative ? "Cámara activa (multi-QR nativo). Buscando…" : "Cámara activa (fallback 1 QR). Buscando…");
-
+        setStatus(useNative ? "Cámara activa (multi-QR). Buscando…" : "Cámara activa (fallback 1 QR). Buscando…");
         tick();
       } catch(err){
         console.error(err);
@@ -177,7 +176,6 @@
       setStatus("Cambiando cámara…");
       await startCamera();
     });
-
     window.addEventListener("pagehide", stopCamera);
 
     // ==== Helpers overlay ====
@@ -190,31 +188,6 @@
       ctx.arcTo(x, y + h, x, y, rr);
       ctx.arcTo(x, y, x + w, y, rr);
       ctx.closePath();
-    }
-
-    function wrapText(ctx, text, maxWidth, maxLines){
-      const words = (text || "").split(/\s+/).filter(Boolean);
-      const lines = [];
-      let line = "";
-      for (const w of words){
-        const test = line ? (line + " " + w) : w;
-        if (ctx.measureText(test).width <= maxWidth){
-          line = test;
-        } else {
-          if (line) lines.push(line);
-          line = w;
-          if (lines.length === maxLines - 1) break;
-        }
-      }
-      if (line) lines.push(line);
-      if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length){
-        lines[lines.length - 1] = lines[lines.length - 1].replace(/\s+$/, "") + "…";
-      }
-      return lines;
-    }
-
-    function angleFrom(a, b){
-      return Math.atan2(b.y - a.y, b.x - a.x);
     }
 
     function normalizeCorners(pts){
@@ -243,46 +216,66 @@
       ctx.stroke();
     }
 
-    function drawRotatedLabel(ctx, label, corners){
+    function drawProductLabelUpright(ctx, producto, precioNumber, corners){
+      // Texto SIN rotación (alineado a pantalla)
       const [tl, tr, br, bl] = corners;
-      const angle = angleFrom(tl, tr);
-      const topLen = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-      const leftLen = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-      const size = Math.max(1, Math.min(topLen, leftLen));
 
-      const fontSize = Math.max(16, Math.round(size / 5));
-      const pad = Math.round(fontSize * 0.55);
-      const lineH = fontSize + 6;
+      // Centro del QR para anclar
+      const cx = (tl.x + tr.x + br.x + bl.x) / 4;
+      const cy = (tl.y + tr.y + br.y + bl.y) / 4;
 
+      // Tamaño aproximado del QR
+      const w = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+      const h = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+      const size = Math.max(1, Math.min(w, h));
+
+      const productFont = Math.max(16, Math.round(size / 5.5));
+      const priceFont   = Math.max(22, Math.round(productFont * 1.25));
+      const pad = Math.round(productFont * 0.7);
+
+      // Formato precio
+      const priceStr = "$" + Number(precioNumber).toFixed(2);
+
+      // Medimos con el mayor (precio) para ancho base; producto puede ser más largo
       ctx.save();
-      ctx.translate(tl.x, tl.y);
-      ctx.rotate(angle);
-      ctx.font = `800 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.textBaseline = "top";
 
-      const maxWidth = Math.min(viewCanvas.width * 0.8, Math.max(260, size * 3));
-      const lines = wrapText(ctx, label, maxWidth, 2);
-      const textW = Math.max(...lines.map(l => ctx.measureText(l).width));
-      const textH = lines.length * lineH;
+      ctx.font = `700 ${productFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      const productW = ctx.measureText(producto).width;
 
-      // Preferimos arriba del QR; si se va fuera, abajo
-      const offset = Math.round(fontSize * 1.1);
-      let x = 0;
-      let y = -(textH + pad*2 + offset);
+      ctx.font = `900 ${priceFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      const priceW = ctx.measureText(priceStr).width;
 
-      // chequeo aproximado en coords globales: si arriba se va, mandamos abajo
-      if (tl.y + y < 0) y = Math.round(leftLen + offset);
+      const boxW = Math.ceil(Math.max(productW, priceW) + pad * 2);
+      const boxH = Math.ceil((productFont + 8) + (priceFont + 4) + pad * 2);
 
+      // Preferimos arriba del QR, si no hay lugar: abajo
+      let x = Math.round(cx - boxW / 2);
+      let y = Math.round((Math.min(tl.y, tr.y) - boxH - 10));
+
+      if (y < 6) y = Math.round((Math.max(bl.y, br.y) + 10));
+
+      // Clamp horizontal
+      x = Math.max(6, Math.min(x, viewCanvas.width - boxW - 6));
+      // Clamp vertical (por si queda fuera)
+      y = Math.max(6, Math.min(y, viewCanvas.height - boxH - 6));
+
+      // Caja
       ctx.fillStyle = "rgba(0,0,0,0.65)";
-      roundRect(ctx, x, y, textW + pad*2, textH + pad*2, 14);
+      roundRect(ctx, x, y, boxW, boxH, 16);
       ctx.fill();
 
+      // Producto (arriba)
       ctx.fillStyle = "rgba(255,255,255,0.95)";
-      let ty = y + pad;
-      for (const line of lines){
-        ctx.fillText(line, x + pad, ty);
-        ty += lineH;
-      }
+      ctx.font = `700 ${productFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.textBaseline = "top";
+      ctx.fillText(producto, x + pad, y + pad);
+
+      // Precio (abajo, centrado, más grande, bold)
+      ctx.font = `900 ${priceFont}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      const px = x + (boxW - ctx.measureText(priceStr).width) / 2;
+      const py = y + pad + productFont + 10;
+      ctx.fillText(priceStr, px, py);
+
       ctx.restore();
     }
 
@@ -292,18 +285,16 @@
       detectBusy = true;
 
       try{
-        // Native multi: detect sobre el video (más estable)
         if (useNative && detector){
           const codes = await detector.detect(video);
           lastDetections = (codes || []).map(c => ({
             id: (c.rawValue || "").trim(),
             corners: normalizeCorners(c.cornerPoints || [])
           })).filter(d => d.id && d.corners[0] && d.corners[1] && d.corners[2] && d.corners[3]);
-
           return;
         }
 
-        // Fallback jsQR (1 QR) sobre canvas chico (rápido)
+        // Fallback jsQR (1 QR) sobre canvas chico
         dctx.drawImage(video, 0, 0, detectCanvas.width, detectCanvas.height);
         const img = dctx.getImageData(0, 0, detectCanvas.width, detectCanvas.height);
         const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
@@ -322,7 +313,6 @@
         ];
         lastDetections = [{ id: (qr.data || "").trim(), corners }];
       } catch (e){
-        // Si el native falla en runtime, apagamos native y seguimos con fallback
         console.warn("Detect error:", e);
         useNative = false;
         detector = null;
@@ -333,27 +323,32 @@
     }
 
     function tick(){
-      // Dibujar frame
       vctx.drawImage(video, 0, 0, viewCanvas.width, viewCanvas.height);
 
-      // Detección por intervalos (no cada frame)
+      // detección por intervalos
       const now = performance.now();
-      const intervalMs = 80; // 50 = más responsive, 120 = menos CPU
+      const intervalMs = 80;
       if (now - lastDetectAt >= intervalMs){
         lastDetectAt = now;
-        detect(); // NO await (usamos lock + cache)
+        detect(); // sin await
       }
 
-      // Overlay de última detección cacheada
       if (lastDetections.length){
         vctx.lineWidth = Math.max(2, Math.round(viewCanvas.width / 500));
         vctx.strokeStyle = "rgba(0,255,200,0.9)";
 
         for (const d of lastDetections){
-          const label = DB[d.id] ?? `ID desconocida: ${d.id}`;
           drawOutline(vctx, d.corners);
-          drawRotatedLabel(vctx, label, d.corners);
+
+          const row = DB[d.id];
+          if (row){
+            drawProductLabelUpright(vctx, row.producto, row.precio, d.corners);
+          } else {
+            // si querés: mostrar algo cuando la ID no existe
+            drawProductLabelUpright(vctx, `ID desconocida: ${d.id}`, 0, d.corners);
+          }
         }
+
         setStatus(useNative ? `Detectados: ${lastDetections.length}` : `Detectado: ${lastDetections[0].id} (fallback)`);
       } else {
         setStatus(useNative ? "Buscando QRs… (multi)" : "Buscando QR… (fallback 1)");
