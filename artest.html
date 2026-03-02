@@ -11,8 +11,26 @@
     button:hover { background:#222; cursor:pointer; }
     .wrap { display:grid; grid-template-columns: 1fr; gap: 10px; padding: 12px; }
     .stage { position: relative; width: min(960px, 96vw); margin: 0 auto; }
-    video, canvas { width: 100%; height: auto; border-radius: 14px; background:#000; }
-    canvas { position:absolute; left:0; top:0; }
+video {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  background:#000;
+  position: relative;
+  z-index: 1;
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  position:absolute;
+  left:0;
+  top:0;
+  background: transparent;
+  pointer-events: none;
+  z-index: 2;
+}
     .log { width: min(960px, 96vw); margin: 0 auto; padding: 10px 12px; background:#151515; border:1px solid #2a2a2a; border-radius: 14px; }
     .hint { color:#aaa; font-size: 13px; }
     .pill { display:inline-block; padding: 2px 8px; border:1px solid #444; border-radius: 999px; margin-right: 6px; font-size: 12px; }
