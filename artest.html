@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Detector: Coca + Mouse + Teclado</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 0; background: #111; color: #eee; }
+    header { padding: 12px 16px; border-bottom: 1px solid #333; display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    button, input { padding: 8px 10px; border-radius: 10px; border: 1px solid #333; background:#1b1b1b; color:#eee; }
+    button:hover { background:#222; cursor:pointer; }
+    .wrap { display:grid; grid-template-columns: 1fr; gap: 10px; padding: 12px; }
+    .stage { position: relative; width: min(960px, 96vw); margin: 0 auto; }
+    video, canvas { width: 100%; height: auto; border-radius: 14px; background:#000; }
+    canvas { position:absolute; left:0; top:0; }
+    .log { width: min(960px, 96vw); margin: 0 auto; padding: 10px 12px; background:#151515; border:1px solid #2a2a2a; border-radius: 14px; }
+    .hint { color:#aaa; font-size: 13px; }
+    .pill { display:inline-block; padding: 2px 8px; border:1px solid #444; border-radius: 999px; margin-right: 6px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<header>
+  <button id="btnStart">▶️ Iniciar cámara</button>
+  <button id="btnStop">⏹️ Parar</button>
+
+  <span class="pill">Detecta: mouse</span>
+  <span class="pill">Detecta: keyboard</span>
+  <span class="pill">Detecta: bottle (y opcional Coca)</span>
+
+  <label class="hint">
+    URL modelo Coca (opcional):
+    <input id="cocaModelUrl" size="40" placeholder="ej: ./coca_model/model.json" />
+  </label>
+  <button id="btnLoadCoca">Cargar modelo Coca</button>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="log">
+    <div id="status">Estado: idle</div>
+    <div class="hint">
+      Si NO cargás modelo Coca, se marca “bottle” genérico.
+      Para “Coca-Cola” real, cargá un clasificador (Teachable Machine o modelo TFJS).
+    </div>
+    <pre id="out" style="white-space:pre-wrap; margin:10px 0 0;"></pre>
+  </div>
+</div>
+
+<!-- TFJS + COCO-SSD -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("overlay");
+  const ctx = canvas.getContext("2d");
+  const statusEl = document.getElementById("status");
+  const outEl = document.getElementById("out");
+
+  const btnStart = document.getElementById("btnStart");
+  const btnStop = document.getElementById("btnStop");
+  const btnLoadCoca = document.getElementById("btnLoadCoca");
+  const cocaModelUrlInput = document.getElementById("cocaModelUrl");
+
+  let stream = null;
+  let coco = null;
+  let running = false;
+
+  // Modelo opcional: clasificador de "coca" vs "no-coca" sobre el recorte de la botella
+  let cocaModel = null; // tf.LayersModel o GraphModel
+  let cocaModelType = null; // "layers" o "graph"
+  const COCA_INPUT_SIZE = 224; // típico, ajustalo al de tu modelo
+
+  // Filtramos solo lo que pediste
+  const WANTED = new Set(["mouse", "keyboard", "bottle"]);
+
+  function fitCanvasToVideo() {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+  }
+
+  async function startCamera() {
+    if (stream) return;
+    statusEl.textContent = "Estado: pidiendo cámara…";
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false
+    });
+    video.srcObject = stream;
+
+    await new Promise(res => video.onloadedmetadata = res);
+    fitCanvasToVideo();
+
+    statusEl.textContent = "Estado: cargando modelo COCO-SSD…";
+    coco = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+    statusEl.textContent = "Estado: listo. Detectando…";
+
+    running = true;
+    loop();
+  }
+
+  function stopCamera() {
+    running = false;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    statusEl.textContent = "Estado: detenido";
+  }
+
+  function drawBox(pred, labelOverride = null) {
+    const [x, y, w, h] = pred.bbox;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,255,0,0.9)";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.strokeRect(x, y, w, h);
+
+    const label = labelOverride ?? `${pred.class} ${(pred.score*100).toFixed(1)}%`;
+    const pad = 6;
+    ctx.font = "16px system-ui, Arial";
+    const textW = ctx.measureText(label).width;
+
+    const boxH = 24;
+    ctx.fillRect(x, Math.max(0, y - boxH), textW + pad*2, boxH);
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillText(label, x + pad, Math.max(16, y - 7));
+  }
+
+  // Extrae un recorte (bbox) y lo convierte a tensor [1,224,224,3]
+  function cropToTensor(bbox) {
+    const [x, y, w, h] = bbox;
+    const tmp = document.createElement("canvas");
+    tmp.width = COCA_INPUT_SIZE;
+    tmp.height = COCA_INPUT_SIZE;
+    const tctx = tmp.getContext("2d");
+
+    // recorte del video original escalado
+    tctx.drawImage(video, x, y, w, h, 0, 0, COCA_INPUT_SIZE, COCA_INPUT_SIZE);
+
+    // tensor normalizado 0..1
+    return tf.tidy(() => tf.browser.fromPixels(tmp).toFloat().div(255).expandDims(0));
+  }
+
+  // Devuelve {isCoca:boolean, score:number} o null si no hay modelo
+  async function classifyCoca(bbox) {
+    if (!cocaModel) return null;
+
+    const t = cropToTensor(bbox);
+    try {
+      let pred;
+      if (cocaModelType === "layers") {
+        pred = cocaModel.predict(t);
+      } else {
+        pred = cocaModel.execute(t);
+      }
+
+      // Asumimos salida tipo [1,2] => [no-coca, coca] o [coca, no-coca]
+      // Para evitar chamuyo: lo dejamos configurable fácil.
+      const arr = await pred.data();
+      // Por defecto: índice 1 es "coca"
+      const cocaScore = arr.length >= 2 ? arr[1] : arr[0];
+      return { isCoca: cocaScore >= 0.70, score: cocaScore };
+
+    } finally {
+      t.dispose();
+    }
+  }
+
+  async function loop() {
+    if (!running) return;
+    if (!coco) { requestAnimationFrame(loop); return; }
+
+    // asegurar canvas correcto si cambia orientación
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      fitCanvasToVideo();
+    }
+
+    const preds = await coco.detect(video);
+    const filtered = preds.filter(p => WANTED.has(p.class) && p.score >= 0.45);
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // log básico
+    let lines = [];
+    for (const p of filtered) {
+      if (p.class === "bottle") {
+        // Opcional: detectar Coca dentro de la botella
+        const coca = await classifyCoca(p.bbox);
+        if (coca) {
+          const tag = coca.isCoca ? "COCA ✅" : "no-coca";
+          drawBox(p, `${tag} ${(coca.score*100).toFixed(1)}% (sobre bottle)`);
+          lines.push(`bottle -> ${tag} (${(coca.score*100).toFixed(1)}%)`);
+        } else {
+          drawBox(p);
+          lines.push(`bottle (${(p.score*100).toFixed(1)}%)`);
+        }
+      } else {
+        drawBox(p);
+        lines.push(`${p.class} (${(p.score*100).toFixed(1)}%)`);
+      }
+    }
+
+    outEl.textContent = lines.length ? lines.join("\n") : "(sin detecciones)";
+
+    requestAnimationFrame(loop);
+  }
+
+  async function loadCocaModel() {
+    const url = cocaModelUrlInput.value.trim();
+    if (!url) {
+      alert("Poné la URL/ruta al model.json (ej: ./coca_model/model.json)");
+      return;
+    }
+    statusEl.textContent = "Estado: cargando modelo Coca…";
+
+    // Probamos layers model primero, si falla probamos GraphModel
+    cocaModel = null;
+    cocaModelType = null;
+
+    try {
+      cocaModel = await tf.loadLayersModel(url);
+      cocaModelType = "layers";
+      statusEl.textContent = "Estado: modelo Coca cargado (LayersModel).";
+      return;
+    } catch (e) {}
+
+    try {
+      cocaModel = await tf.loadGraphModel(url);
+      cocaModelType = "graph";
+      statusEl.textContent = "Estado: modelo Coca cargado (GraphModel).";
+      return;
+    } catch (e) {
+      statusEl.textContent = "Estado: no pude cargar el modelo Coca.";
+      alert("No pude cargar ese model.json. Revisá ruta/servidor/CORS y formato del modelo.");
+    }
+  }
+
+  btnStart.addEventListener("click", startCamera);
+  btnStop.addEventListener("click", stopCamera);
+  btnLoadCoca.addEventListener("click", loadCocaModel);
+</script>
+</body>
+</html>
