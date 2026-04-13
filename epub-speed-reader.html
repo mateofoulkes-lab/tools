@@ -185,6 +185,22 @@
       line-height: 1.4;
       color: var(--muted);
     }
+    .logo-slot {
+      width: 160px;
+      aspect-ratio: 1 / 1;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.02);
+      overflow: hidden;
+    }
+    .logo-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
     .overlay {
       position: absolute;
       inset: 0;
@@ -278,8 +294,9 @@
   <div class="app">
     <aside class="sidebar">
       <div class="card">
-        <h1>EPUB Speed Reader</h1>
-        <p class="muted">Lectura normal, medición, texto guiado y modo RSVP para entrenar velocidad.</p>
+        <div class="logo-slot">
+          <img src="logo.png" alt="Logo" />
+        </div>
       </div>
 
       <div class="tabs">
@@ -295,6 +312,14 @@
           <div class="field">
             <label for="epubInput">Cargar EPUB</label>
             <input id="epubInput" type="file" accept=".epub" />
+          </div>
+          <div class="field">
+            <label for="ebookTheme">Tema del ebook</label>
+            <select id="ebookTheme">
+              <option value="normal">Normal</option>
+              <option value="dark">Oscuro</option>
+              <option value="sepia">Sepia</option>
+            </select>
           </div>
           <div class="row">
             <button class="btn" id="prevBtn">⟵ Anterior</button>
@@ -331,6 +356,10 @@
           <div class="field">
             <label for="boldLettersCount">Cantidad de letras a resaltar</label>
             <input id="boldLettersCount" type="number" min="1" max="8" value="4" />
+          </div>
+          <div class="field">
+            <label for="bionicColor">Color de negritas</label>
+            <input id="bionicColor" type="color" value="#ffd166" />
           </div>
           <div class="row">
             <button class="btn primary" id="enableBionicBtn">Activar</button>
@@ -381,6 +410,18 @@
         <div class="card stack">
           <h2>Meta-guiding (línea guía)</h2>
           <div class="hint">Una línea horizontal que guía la lectura y ayuda a mantener el ritmo.</div>
+          <div class="field">
+            <label for="guideColor">Color de guía</label>
+            <input id="guideColor" type="color" value="#ffff00" />
+          </div>
+          <div class="field">
+            <label for="guideThickness">Espesor de guía (px)</label>
+            <input id="guideThickness" type="range" min="1" max="10" value="2" />
+          </div>
+          <div class="field">
+            <label for="guideOpacity">Transparencia de guía</label>
+            <input id="guideOpacity" type="range" min="0.1" max="1" step="0.05" value="0.4" />
+          </div>
           <div class="row">
             <button class="btn primary" id="enableGuideBtn">Activar</button>
             <button class="btn" id="disableGuideBtn">Desactivar</button>
@@ -396,6 +437,15 @@
             <label for="chunkSize">Palabras por bloque</label>
             <input id="chunkSize" type="number" min="2" max="6" value="3" />
           </div>
+          <div class="field">
+            <label for="chunkTheme">Tema de chunks</label>
+            <select id="chunkTheme">
+              <option value="soft">Suave (actual)</option>
+              <option value="high-contrast">Alto contraste</option>
+              <option value="sunset">Sunset</option>
+              <option value="mono">Monocromo</option>
+            </select>
+          </div>
           <div class="row">
             <button class="btn primary" id="enableChunkBtn">Activar</button>
             <button class="btn" id="disableChunkBtn">Desactivar</button>
@@ -408,8 +458,10 @@
       <div class="topbar">
         <div class="pill">Vista: <strong id="viewModePill">Normal</strong></div>
         <div class="pill">Sección visible: <strong id="sectionInfo">—</strong></div>
-        <div class="grow"></div>
-        <div class="small muted">Click = inicio · Ctrl+click = fin · S/E = medir</div>
+        <button class="btn" id="topPrevSectionBtn">← sección anterior</button>
+        <button class="btn" id="topNextSectionBtn">→ sección siguiente</button>
+        <button class="btn" id="topPrevPageBtn">← página anterior</button>
+        <button class="btn" id="topNextPageBtn">→ página siguiente</button>
       </div>
       <div class="viewer-shell">
         <div id="viewer" class="viewer"></div>
@@ -479,9 +531,14 @@
       epubInput: $('#epubInput'),
       prevBtn: $('#prevBtn'),
       nextBtn: $('#nextBtn'),
+      ebookTheme: $('#ebookTheme'),
       bookStatus: $('#bookStatus'),
       sectionInfo: $('#sectionInfo'),
       viewModePill: $('#viewModePill'),
+      topPrevSectionBtn: $('#topPrevSectionBtn'),
+      topNextSectionBtn: $('#topNextSectionBtn'),
+      topPrevPageBtn: $('#topPrevPageBtn'),
+      topNextPageBtn: $('#topNextPageBtn'),
       startMeasureBtn: $('#startMeasureBtn'),
       stopMeasureBtn: $('#stopMeasureBtn'),
       readingWpm: $('#readingWpm'),
@@ -489,6 +546,7 @@
       elapsedTime: $('#elapsedTime'),
       startWordInfo: $('#startWordInfo'),
       boldLettersCount: $('#boldLettersCount'),
+      bionicColor: $('#bionicColor'),
       enableBionicBtn: $('#enableBionicBtn'),
       disableBionicBtn: $('#disableBionicBtn'),
       speedSlider: $('#speedSlider'),
@@ -510,9 +568,13 @@
       overlayCloseBtn: $('#overlayCloseBtn'),
       enableGuideBtn: $('#enableGuideBtn'),
       disableGuideBtn: $('#disableGuideBtn'),
+      guideColor: $('#guideColor'),
+      guideThickness: $('#guideThickness'),
+      guideOpacity: $('#guideOpacity'),
       enableChunkBtn: $('#enableChunkBtn'),
       disableChunkBtn: $('#disableChunkBtn'),
-      chunkSize: $('#chunkSize')
+      chunkSize: $('#chunkSize'),
+      chunkTheme: $('#chunkTheme')
     };
 
     function init() {
@@ -527,6 +589,14 @@
       els.epubInput.addEventListener('change', onFilePicked);
       els.prevBtn.addEventListener('click', () => state.rendition?.prev());
       els.nextBtn.addEventListener('click', () => state.rendition?.next());
+      els.topPrevPageBtn.addEventListener('click', () => state.rendition?.prev());
+      els.topNextPageBtn.addEventListener('click', () => state.rendition?.next());
+      els.topPrevSectionBtn.addEventListener('click', () => jumpSection(-1));
+      els.topNextSectionBtn.addEventListener('click', () => jumpSection(1));
+      els.ebookTheme.addEventListener('change', () => {
+        localStorage.setItem('speed-reader-ebook-theme', els.ebookTheme.value);
+        applyCurrentViewTransforms();
+      });
 
       els.startMeasureBtn.addEventListener('click', startMeasurement);
       els.stopMeasureBtn.addEventListener('click', stopMeasurement);
@@ -537,6 +607,14 @@
         state.bionic.enabled = true;
         applyCurrentViewTransforms();
       });
+      els.boldLettersCount.addEventListener('input', () => {
+        state.bionic.letters = clamp(parseInt(els.boldLettersCount.value || '4', 10), 1, 8);
+        if (state.bionic.enabled) applyCurrentViewTransforms();
+      });
+      els.bionicColor.addEventListener('input', () => {
+        localStorage.setItem('speed-reader-bionic-color', els.bionicColor.value);
+        if (state.bionic.enabled) applyCurrentViewTransforms();
+      });
       els.disableBionicBtn.addEventListener('click', () => {
         state.bionic.enabled = false;
         applyCurrentViewTransforms();
@@ -544,9 +622,19 @@
 
       els.enableGuideBtn.addEventListener('click', enableGuide);
       els.disableGuideBtn.addEventListener('click', disableGuide);
+      [els.guideColor, els.guideThickness, els.guideOpacity].forEach(input => {
+        input.addEventListener('input', () => {
+          saveGuidePrefs();
+          repaintGuidePreview();
+        });
+      });
       els.enableChunkBtn.addEventListener('click', enableChunking);
       els.disableChunkBtn.addEventListener('click', disableChunking);
       els.chunkSize.addEventListener('input', () => { if (state.chunkingEnabled) applyCurrentViewTransforms(); });
+      els.chunkTheme.addEventListener('change', () => {
+        localStorage.setItem('speed-reader-chunk-theme', els.chunkTheme.value);
+        applyCurrentViewTransforms();
+      });
 
       els.speedSlider.addEventListener('input', updateSliderLabel);
       els.growingSpeedCheckbox.addEventListener('change', () => {
@@ -591,6 +679,25 @@
           document.querySelector(`[data-panel="${tab.dataset.tab}"]`).classList.add('active');
         });
       });
+    }
+
+    function initSavedPreferences() {
+      const savedChunkTheme = localStorage.getItem('speed-reader-chunk-theme');
+      if (savedChunkTheme && Array.from(els.chunkTheme.options).some(opt => opt.value === savedChunkTheme)) {
+        els.chunkTheme.value = savedChunkTheme;
+      }
+      const savedBionicColor = localStorage.getItem('speed-reader-bionic-color');
+      if (savedBionicColor) els.bionicColor.value = savedBionicColor;
+      const savedGuideColor = localStorage.getItem('speed-reader-guide-color');
+      if (savedGuideColor) els.guideColor.value = savedGuideColor;
+      const savedGuideThickness = localStorage.getItem('speed-reader-guide-thickness');
+      if (savedGuideThickness) els.guideThickness.value = savedGuideThickness;
+      const savedGuideOpacity = localStorage.getItem('speed-reader-guide-opacity');
+      if (savedGuideOpacity) els.guideOpacity.value = savedGuideOpacity;
+      const savedEbookTheme = localStorage.getItem('speed-reader-ebook-theme');
+      if (savedEbookTheme && Array.from(els.ebookTheme.options).some(opt => opt.value === savedEbookTheme)) {
+        els.ebookTheme.value = savedEbookTheme;
+      }
     }
 
     async function onFilePicked(e) {
@@ -676,9 +783,20 @@
       if (doc.getElementById('speed-reader-style')) return;
       const style = doc.createElement('style');
       style.id = 'speed-reader-style';
-      style.textContent = `$1.sr-bionic strong { font-weight: 800; }
-        .sr-chunk { display: inline-flex; align-items: baseline; gap: .22em; margin-right: .6em; padding: .04em .2em; border-radius: .35em; background: rgba(102,179,255,0.14); }
-        .sr-chunk:nth-of-type(even) { background: rgba(138,125,255,0.12); }
+      style.textContent = `.sr-bionic strong { font-weight: 800; }
+        body.sr-theme-dark { background: #111418 !important; color: #e8edf5 !important; }
+        body.sr-theme-sepia { background: #f5ecd8 !important; color: #4b3f2e !important; }
+        .sr-chunk {
+          display: inline-block;
+          line-height: 1.4;
+          margin-right: .34em;
+          margin-bottom: .08em;
+          padding: .06em .24em;
+          border-radius: .35em;
+          background: var(--chunk-bg-1, rgba(102,179,255,0.18));
+        }
+        .sr-chunk .${WORD_CLASS} + .${WORD_CLASS} { margin-left: .18em; }
+        .sr-chunk:nth-of-type(even) { background: var(--chunk-bg-2, rgba(138,125,255,0.17)); }
       `;
       doc.head.appendChild(style);
     }
@@ -845,6 +963,7 @@
       if (!state.rendition) return;
       state.rendition.getContents().forEach(content => {
         const doc = content.document;
+        applyEbookTheme(doc);
         renderBionicInDocument(doc, state.bionic.enabled, state.bionic.letters);
         if (state.chunkingEnabled) applyChunking(doc);
         else clearChunking(doc);
@@ -853,6 +972,7 @@
     }
 
     function renderBionicInDocument(doc, enabled, letters) {
+      doc.documentElement.style.setProperty('--bionic-color', els.bionicColor.value || '#ffd166');
       doc.querySelectorAll(`.${WORD_CLASS}`).forEach(span => {
         const word = span.dataset.rawWord || span.textContent || '';
         if (!enabled) {
@@ -863,8 +983,15 @@
         const n = Math.min(Math.max(1, letters), word.length);
         const first = escapeHtml(word.slice(0, n));
         const rest = escapeHtml(word.slice(n));
-        span.innerHTML = `<span class="sr-bionic"><strong>${first}</strong>${rest}</span>`;
+        span.innerHTML = `<span class="sr-bionic"><strong style="color:${escapeHtml(els.bionicColor.value || '#ffd166')}">${first}</strong>${rest}</span>`;
       });
+    }
+
+    function applyEbookTheme(doc) {
+      const theme = els.ebookTheme.value || 'normal';
+      doc.body?.classList.remove('sr-theme-dark', 'sr-theme-sepia');
+      if (theme === 'dark') doc.body?.classList.add('sr-theme-dark');
+      if (theme === 'sepia') doc.body?.classList.add('sr-theme-sepia');
     }
 
     function startMeasurement() {
@@ -929,7 +1056,10 @@
 
       state.currentSectionWords = words;
       const currentKey = state.currentSectionHref || Array.from(state.sectionWordMap.keys())[0];
-      if (state.selectedWord && state.selectedWord.sectionKey === currentKey) {
+      const canResume = !state.rsvp.playing && state.rsvp.index > 0 && state.rsvp.index < words.length;
+      if (canResume) {
+        state.rsvp.index = clamp(state.rsvp.index, 0, words.length - 1);
+      } else if (state.selectedWord && state.selectedWord.sectionKey === currentKey) {
         state.rsvp.index = clamp(state.selectedWord.wordIndex, 0, words.length - 1);
       } else if (state.rsvp.index >= words.length) {
         state.rsvp.index = 0;
@@ -1115,18 +1245,43 @@
         line.style.position = 'fixed';
         line.style.left = '0';
         line.style.width = '100%';
-        line.style.height = '2px';
-        line.style.background = 'rgba(255,255,0,0.4)';
+        line.style.height = `${clamp(parseInt(els.guideThickness.value || '2', 10), 1, 10)}px`;
+        line.style.background = colorToRgba(els.guideColor.value || '#ffff00', clamp(parseFloat(els.guideOpacity.value || '0.4'), 0.1, 1));
         line.style.pointerEvents = 'none';
         line.style.zIndex = '9999';
         document.body.appendChild(line);
       }
+      line.style.height = `${clamp(parseInt(els.guideThickness.value || '2', 10), 1, 10)}px`;
+      line.style.background = colorToRgba(els.guideColor.value || '#ffff00', clamp(parseFloat(els.guideOpacity.value || '0.4'), 0.1, 1));
       line.style.top = e.clientY + 'px';
     }
 
     function removeGuide() {
       const line = document.getElementById('guideLine');
       if (line) line.remove();
+    }
+
+    function repaintGuidePreview() {
+      if (!state.guideEnabled) return;
+      const line = document.getElementById('guideLine');
+      if (!line) return;
+      line.style.height = `${clamp(parseInt(els.guideThickness.value || '2', 10), 1, 10)}px`;
+      line.style.background = colorToRgba(els.guideColor.value || '#ffff00', clamp(parseFloat(els.guideOpacity.value || '0.4'), 0.1, 1));
+    }
+
+    function saveGuidePrefs() {
+      localStorage.setItem('speed-reader-guide-color', els.guideColor.value);
+      localStorage.setItem('speed-reader-guide-thickness', els.guideThickness.value);
+      localStorage.setItem('speed-reader-guide-opacity', els.guideOpacity.value);
+    }
+
+    function colorToRgba(hex, alpha) {
+      const safe = String(hex || '#ffff00').replace('#', '');
+      const full = safe.length === 3 ? safe.split('').map(ch => ch + ch).join('') : safe.padEnd(6, '0').slice(0, 6);
+      const r = parseInt(full.slice(0, 2), 16);
+      const g = parseInt(full.slice(2, 4), 16);
+      const b = parseInt(full.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
     function enableChunking() {
@@ -1149,6 +1304,7 @@
         parent.removeChild(chunk);
       });
       doc.querySelectorAll(`.${WORD_CLASS}`).forEach(w => {
+        w.style.removeProperty('margin-left');
         w.style.background = '';
         w.style.marginRight = '';
       });
@@ -1157,6 +1313,7 @@
 
     function applyChunking(doc) {
       clearChunking(doc);
+      applyChunkTheme(doc);
       const size = clamp(parseInt(els.chunkSize.value || '3', 10), 2, 6);
       const words = Array.from(doc.querySelectorAll(`.${WORD_CLASS}`));
       if (!words.length) return;
@@ -1179,6 +1336,30 @@
       repaintMeasurementMarkers();
     }
 
+    function applyChunkTheme(doc) {
+      const theme = els.chunkTheme.value || 'soft';
+      const themes = {
+        soft: { a: 'rgba(102,179,255,0.18)', b: 'rgba(138,125,255,0.17)' },
+        'high-contrast': { a: 'rgba(255,224,102,0.42)', b: 'rgba(90,170,255,0.40)' },
+        sunset: { a: 'rgba(255,140,102,0.30)', b: 'rgba(255,90,140,0.28)' },
+        mono: { a: 'rgba(255,255,255,0.22)', b: 'rgba(255,255,255,0.34)' }
+      };
+      const chosen = themes[theme] || themes.soft;
+      doc.documentElement.style.setProperty('--chunk-bg-1', chosen.a);
+      doc.documentElement.style.setProperty('--chunk-bg-2', chosen.b);
+    }
+
+    async function jumpSection(direction) {
+      if (!state.book || !state.rendition) return;
+      const spineItems = state.book.spine?.spineItems || [];
+      if (!spineItems.length) return;
+      const targetIndex = clamp(state.currentSectionIndex + direction, 0, spineItems.length - 1);
+      const target = spineItems[targetIndex];
+      if (!target) return;
+      await state.rendition.display(target.href);
+    }
+
+    initSavedPreferences();
     init();
   </script>
 </body>
