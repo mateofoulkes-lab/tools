@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EPUB Speed Reader</title>
+  <title>EPUB Speed Reader v2</title>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
   <style>
@@ -17,6 +17,7 @@
       --accent-2: #8a7dff;
       --danger: #ff5f73;
       --ok: #39d98a;
+      --warn: #f0b429;
       --border: #2a3140;
       --shadow: 0 10px 30px rgba(0,0,0,.28);
       --radius: 18px;
@@ -31,9 +32,7 @@
       background: linear-gradient(180deg, #0d1016, #111622);
       color: var(--text);
     }
-    button, input, select {
-      font: inherit;
-    }
+    button, input, select { font: inherit; }
     .app {
       display: grid;
       grid-template-columns: 380px 1fr;
@@ -142,12 +141,10 @@
       border-radius: 12px;
       padding: 10px 12px;
     }
-    input[type="checkbox"] {
-      transform: translateY(1px);
-    }
+    input[type="checkbox"] { transform: translateY(1px); }
     .tabs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 8px;
       margin-bottom: 12px;
     }
@@ -159,6 +156,7 @@
       background: #141925;
       cursor: pointer;
       user-select: none;
+      font-size: .9rem;
     }
     .tab.active {
       background: linear-gradient(180deg, rgba(102,179,255,.22), rgba(138,125,255,.16));
@@ -258,10 +256,22 @@
     .dot.red { background: #ff4b4b; }
     .dot.yellow { background: #f0b429; }
     .small { font-size: .85rem; }
-    .status-ok { color: #87ecb7; }
-    .status-warn { color: #ffd27d; }
     .status-danger { color: #ff9cab; }
-    .spacer { height: 6px; }
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 6px;
+      border: 1px solid #4d596e;
+      background: #1a2030;
+      color: #dfe6f3;
+      font-size: .82rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+      .tabs { grid-template-columns: repeat(3, 1fr); }
+    }
   </style>
 </head>
 <body>
@@ -276,6 +286,8 @@
         <div class="tab active" data-tab="general">General</div>
         <div class="tab" data-tab="bionic">Negritas</div>
         <div class="tab" data-tab="rsvp">RSVP</div>
+        <div class="tab" data-tab="meta">Guía</div>
+        <div class="tab" data-tab="chunk">Chunking</div>
       </div>
 
       <section class="panel active" data-panel="general">
@@ -288,13 +300,17 @@
             <button class="btn" id="prevBtn">⟵ Anterior</button>
             <button class="btn" id="nextBtn">Siguiente ⟶</button>
           </div>
-          <div class="hint">Primero abrí un EPUB. En el lector podés seleccionar una palabra para iniciar una medición exacta.</div>
+          <div class="hint">Primero abrí un EPUB. En el lector hacé click sobre la palabra inicial y <strong>Ctrl+click</strong> sobre la palabra final.</div>
           <div id="bookStatus" class="small muted">Sin libro cargado.</div>
         </div>
 
         <div class="card stack">
           <h2>Medición de velocidad</h2>
-          <div class="hint">Seleccioná una palabra visible en el lector y tocá <strong>Comenzar medición</strong>. Leé normalmente. Al detener, si no seleccionaste una palabra final, la app estima el punto de llegada con la palabra visible más cercana al centro de la pantalla.</div>
+          <div class="hint">
+            <div>Click = palabra inicial. <strong>Ctrl+click</strong> = palabra final.</div>
+            <div>Atajos: <span class="kbd">S</span> iniciar medición, <span class="kbd">E</span> detener medición.</div>
+            <div>Así no perdés tiempo tocando botones durante la prueba.</div>
+          </div>
           <div class="row">
             <button class="btn ok" id="startMeasureBtn">Comenzar medición</button>
             <button class="btn danger" id="stopMeasureBtn" disabled>Detener medición</button>
@@ -303,7 +319,7 @@
             <div class="stat"><span class="muted">Velocidad actual</span><strong id="readingWpm">—</strong></div>
             <div class="stat"><span class="muted">Palabras leídas</span><strong id="wordsRead">—</strong></div>
             <div class="stat"><span class="muted">Tiempo</span><strong id="elapsedTime">—</strong></div>
-            <div class="stat"><span class="muted">Punto de inicio</span><strong id="startWordInfo">—</strong></div>
+            <div class="stat"><span class="muted">Inicio / fin</span><strong id="startWordInfo">—</strong></div>
           </div>
         </div>
       </section>
@@ -360,6 +376,32 @@
           <div class="hint">El modo RSVP usa el texto del capítulo o sección visible. La palabra actual también se resalta en el EPUB de fondo.</div>
         </div>
       </section>
+
+      <section class="panel" data-panel="meta">
+        <div class="card stack">
+          <h2>Meta-guiding (línea guía)</h2>
+          <div class="hint">Una línea horizontal que guía la lectura y ayuda a mantener el ritmo.</div>
+          <div class="row">
+            <button class="btn primary" id="enableGuideBtn">Activar</button>
+            <button class="btn" id="disableGuideBtn">Desactivar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="chunk">
+        <div class="card stack">
+          <h2>Chunking automático</h2>
+          <div class="hint">Agrupa palabras en bloques para lectura por chunks.</div>
+          <div class="field">
+            <label for="chunkSize">Palabras por bloque</label>
+            <input id="chunkSize" type="number" min="2" max="6" value="3" />
+          </div>
+          <div class="row">
+            <button class="btn primary" id="enableChunkBtn">Activar</button>
+            <button class="btn" id="disableChunkBtn">Desactivar</button>
+          </div>
+        </div>
+      </section>
     </aside>
 
     <main class="main">
@@ -367,7 +409,7 @@
         <div class="pill">Vista: <strong id="viewModePill">Normal</strong></div>
         <div class="pill">Sección visible: <strong id="sectionInfo">—</strong></div>
         <div class="grow"></div>
-        <div class="small muted">Seleccioná palabras dentro del lector.</div>
+        <div class="small muted">Click = inicio · Ctrl+click = fin · S/E = medir</div>
       </div>
       <div class="viewer-shell">
         <div id="viewer" class="viewer"></div>
@@ -394,9 +436,13 @@
     const WORD_CLASS = 'sr-word';
     const CURRENT_WORD_CLASS = 'sr-current-word';
     const MEASURE_START_CLASS = 'sr-measure-start';
+    const MEASURE_END_CLASS = 'sr-measure-end';
     const RSVP_BG_CLASS = 'sr-rsvp-highlight';
+    const CHUNK_CLASS = 'sr-chunk';
 
     const state = {
+      chunkingEnabled: false,
+      guideEnabled: false,
       book: null,
       rendition: null,
       loaded: false,
@@ -408,6 +454,7 @@
       measurement: {
         active: false,
         start: null,
+        end: null,
         lastResultWpm: null
       },
       bionic: {
@@ -460,7 +507,12 @@
       overlayBackBtn: $('#overlayBackBtn'),
       overlayPlayBtn: $('#overlayPlayBtn'),
       overlayPauseBtn: $('#overlayPauseBtn'),
-      overlayCloseBtn: $('#overlayCloseBtn')
+      overlayCloseBtn: $('#overlayCloseBtn'),
+      enableGuideBtn: $('#enableGuideBtn'),
+      disableGuideBtn: $('#disableGuideBtn'),
+      enableChunkBtn: $('#enableChunkBtn'),
+      disableChunkBtn: $('#disableChunkBtn'),
+      chunkSize: $('#chunkSize')
     };
 
     function init() {
@@ -478,6 +530,7 @@
 
       els.startMeasureBtn.addEventListener('click', startMeasurement);
       els.stopMeasureBtn.addEventListener('click', stopMeasurement);
+      document.addEventListener('keydown', onGlobalKeyDown);
 
       els.enableBionicBtn.addEventListener('click', () => {
         state.bionic.letters = clamp(parseInt(els.boldLettersCount.value || '4', 10), 1, 8);
@@ -488,6 +541,12 @@
         state.bionic.enabled = false;
         applyCurrentViewTransforms();
       });
+
+      els.enableGuideBtn.addEventListener('click', enableGuide);
+      els.disableGuideBtn.addEventListener('click', disableGuide);
+      els.enableChunkBtn.addEventListener('click', enableChunking);
+      els.disableChunkBtn.addEventListener('click', disableChunking);
+      els.chunkSize.addEventListener('input', () => { if (state.chunkingEnabled) applyCurrentViewTransforms(); });
 
       els.speedSlider.addEventListener('input', updateSliderLabel);
       els.growingSpeedCheckbox.addEventListener('change', () => {
@@ -504,6 +563,23 @@
       els.overlayPauseBtn.addEventListener('click', pauseRsvp);
       els.overlayBackBtn.addEventListener('click', rewindRsvp);
       els.overlayCloseBtn.addEventListener('click', closeOverlay);
+    }
+
+    function onGlobalKeyDown(ev) {
+      const target = ev.target;
+      const tag = target?.tagName;
+      const isTyping = target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag);
+      if (isTyping) return;
+
+      const key = ev.key.toLowerCase();
+      if (key === 's') {
+        ev.preventDefault();
+        startMeasurement();
+      }
+      if (key === 'e') {
+        ev.preventDefault();
+        stopMeasurement();
+      }
     }
 
     function initTabs() {
@@ -550,6 +626,7 @@
 
     function cleanup() {
       pauseRsvp();
+      disableGuide();
       state.book = null;
       state.rendition = null;
       state.loaded = false;
@@ -558,6 +635,7 @@
       state.selectedWord = null;
       state.measurement.active = false;
       state.measurement.start = null;
+      state.measurement.end = null;
       els.stopMeasureBtn.disabled = true;
       els.startMeasureBtn.disabled = false;
       els.viewer.innerHTML = '';
@@ -572,11 +650,10 @@
       els.sectionInfo.textContent = `${state.currentSectionIndex + 1}`;
 
       const contents = state.rendition.getContents();
-      contents.forEach(content => {
-        prepareContentDocument(content.document, content.window, section);
-      });
+      contents.forEach(content => prepareContentDocument(content.document, content.window, section));
 
       applyCurrentViewTransforms();
+      repaintMeasurementMarkers();
     }
 
     function onRelocated(location) {
@@ -599,12 +676,9 @@
       if (doc.getElementById('speed-reader-style')) return;
       const style = doc.createElement('style');
       style.id = 'speed-reader-style';
-      style.textContent = `
-        .${WORD_CLASS} { transition: background-color .12s ease, color .12s ease, box-shadow .12s ease; }
-        .${CURRENT_WORD_CLASS} { background: rgba(255, 210, 94, .45); border-radius: .18em; box-shadow: 0 0 0 1px rgba(240,180,41,.25) inset; }
-        .${MEASURE_START_CLASS} { background: rgba(57, 217, 138, .28); border-radius: .18em; box-shadow: 0 0 0 1px rgba(57,217,138,.35) inset; }
-        .${RSVP_BG_CLASS} { background: rgba(255, 75, 75, .20); border-radius: .18em; box-shadow: 0 0 0 1px rgba(255,75,75,.18) inset; }
-        .sr-bionic strong { font-weight: 800; }
+      style.textContent = `$1.sr-bionic strong { font-weight: 800; }
+        .sr-chunk { display: inline-flex; align-items: baseline; gap: .22em; margin-right: .6em; padding: .04em .2em; border-radius: .35em; background: rgba(102,179,255,0.14); }
+        .sr-chunk:nth-of-type(even) { background: rgba(138,125,255,0.12); }
       `;
       doc.head.appendChild(style);
     }
@@ -612,13 +686,14 @@
     function wrapWordsInDocument(doc, section) {
       const body = doc.body;
       if (!body) return;
+
       const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
           if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
           if (!node.parentElement) return NodeFilter.FILTER_REJECT;
           const tag = node.parentElement.tagName;
           if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(tag)) return NodeFilter.FILTER_REJECT;
-          if (node.parentElement.closest('.sr-word')) return NodeFilter.FILTER_REJECT;
+          if (node.parentElement.closest(`.${WORD_CLASS}`)) return NodeFilter.FILTER_REJECT;
           return NodeFilter.FILTER_ACCEPT;
         }
       });
@@ -648,11 +723,7 @@
             span.dataset.rawWord = part;
             span.textContent = part;
             frag.appendChild(span);
-            words.push({
-              index: globalIndex,
-              text: part,
-              span
-            });
+            words.push({ index: globalIndex, text: part, span });
             globalIndex += 1;
           }
         }
@@ -671,14 +742,14 @@
       doc.addEventListener('click', (ev) => {
         const span = ev.target.closest?.(`.${WORD_CLASS}`);
         if (!span) return;
-        setSelectedWord({
-          sectionKey,
-          wordIndex: parseInt(span.dataset.wordIndex, 10),
-          text: span.dataset.rawWord,
-          span,
-          doc,
-          win
-        });
+
+        const payload = buildSelectionPayload(span, sectionKey, doc, win);
+        if (ev.ctrlKey || ev.metaKey) {
+          setMeasurementEndWord(payload);
+        } else {
+          setSelectedWord(payload);
+          setMeasurementStartWord(payload);
+        }
       });
 
       doc.addEventListener('mouseup', () => {
@@ -687,22 +758,81 @@
         const anchorNode = selection.anchorNode?.nodeType === Node.TEXT_NODE ? selection.anchorNode.parentElement : selection.anchorNode;
         const span = anchorNode?.closest?.(`.${WORD_CLASS}`);
         if (!span) return;
-        setSelectedWord({
-          sectionKey,
-          wordIndex: parseInt(span.dataset.wordIndex, 10),
-          text: span.dataset.rawWord,
-          span,
-          doc,
-          win
-        });
+        const payload = buildSelectionPayload(span, sectionKey, doc, win);
+        setSelectedWord(payload);
+        setMeasurementStartWord(payload);
       });
+    }
+
+    function buildSelectionPayload(span, sectionKey, doc, win) {
+      return {
+        sectionKey,
+        wordIndex: parseInt(span.dataset.wordIndex, 10),
+        text: span.dataset.rawWord,
+        span,
+        doc,
+        win
+      };
     }
 
     function setSelectedWord(sel) {
       clearMarkedWord(CURRENT_WORD_CLASS);
       state.selectedWord = sel;
       sel.span.classList.add(CURRENT_WORD_CLASS);
-      els.startWordInfo.textContent = `${sel.text} (#${sel.wordIndex + 1})`;
+    }
+
+    function setMeasurementStartWord(sel) {
+      state.measurement.start = {
+        sectionKey: sel.sectionKey,
+        wordIndex: sel.wordIndex,
+        text: sel.text,
+        timestamp: state.measurement.start?.timestamp ?? null
+      };
+      repaintMeasurementMarkers();
+      updateMeasurementInfoLabel();
+    }
+
+    function setMeasurementEndWord(sel) {
+      state.measurement.end = {
+        sectionKey: sel.sectionKey,
+        wordIndex: sel.wordIndex,
+        text: sel.text
+      };
+      repaintMeasurementMarkers();
+      updateMeasurementInfoLabel();
+    }
+
+    function repaintMeasurementMarkers() {
+      clearMarkedWord(MEASURE_START_CLASS);
+      clearMarkedWord(MEASURE_END_CLASS);
+      paintStoredMarker(state.measurement.start, MEASURE_START_CLASS);
+      paintStoredMarker(state.measurement.end, MEASURE_END_CLASS);
+    }
+
+    function paintStoredMarker(marker, cls) {
+      if (!marker) return;
+      state.rendition?.getContents().forEach(content => {
+        const el = content.document.querySelector(`.${WORD_CLASS}[data-section-key="${marker.sectionKey}"][data-word-index="${marker.wordIndex}"]`);
+        if (el) el.classList.add(cls);
+      });
+    }
+
+    function updateMeasurementInfoLabel() {
+      const start = state.measurement.start;
+      const end = state.measurement.end;
+      if (!start && !end) {
+        els.startWordInfo.textContent = '—';
+        return;
+      }
+      if (start && end) {
+        els.startWordInfo.textContent = `${start.text} (#${start.wordIndex + 1}) → ${end.text} (#${end.wordIndex + 1})`;
+        return;
+      }
+      if (start) {
+        els.startWordInfo.textContent = `${start.text} (#${start.wordIndex + 1}) → —`;
+        return;
+      }
+      els.startWordInfo.textContent = `— → ${end.text} (#${end.wordIndex + 1})`;
     }
 
     function clearMarkedWord(cls) {
@@ -716,8 +846,10 @@
       state.rendition.getContents().forEach(content => {
         const doc = content.document;
         renderBionicInDocument(doc, state.bionic.enabled, state.bionic.letters);
+        if (state.chunkingEnabled) applyChunking(doc);
+        else clearChunking(doc);
       });
-      els.viewModePill.textContent = state.bionic.enabled ? 'Negritas activas' : 'Normal';
+      els.viewModePill.textContent = state.bionic.enabled ? 'Negritas activas' : (state.chunkingEnabled ? 'Chunking' : 'Normal');
     }
 
     function renderBionicInDocument(doc, enabled, letters) {
@@ -728,50 +860,36 @@
           span.classList.remove('sr-bionic');
           return;
         }
-        const clean = word;
-        const n = Math.min(Math.max(1, letters), clean.length);
-        const first = escapeHtml(clean.slice(0, n));
-        const rest = escapeHtml(clean.slice(n));
+        const n = Math.min(Math.max(1, letters), word.length);
+        const first = escapeHtml(word.slice(0, n));
+        const rest = escapeHtml(word.slice(n));
         span.innerHTML = `<span class="sr-bionic"><strong>${first}</strong>${rest}</span>`;
       });
     }
 
     function startMeasurement() {
       if (!state.loaded) return alert('Primero cargá un EPUB.');
-      if (!state.selectedWord) return alert('Seleccioná una palabra visible antes de comenzar.');
-
-      clearMarkedWord(MEASURE_START_CLASS);
-      state.selectedWord.span.classList.add(MEASURE_START_CLASS);
-
+      if (!state.measurement.start) return alert('Seleccioná una palabra inicial con click antes de comenzar.');
       state.measurement.active = true;
-      state.measurement.start = {
-        timestamp: performance.now(),
-        sectionKey: state.selectedWord.sectionKey,
-        wordIndex: state.selectedWord.wordIndex,
-        text: state.selectedWord.text
-      };
-
+      state.measurement.start.timestamp = performance.now();
       els.startMeasureBtn.disabled = true;
       els.stopMeasureBtn.disabled = false;
-      els.startWordInfo.textContent = `${state.selectedWord.text} (#${state.selectedWord.wordIndex + 1})`;
     }
 
     function stopMeasurement() {
-      if (!state.measurement.active || !state.measurement.start) return;
-      const end = resolveMeasurementEnd();
-      if (!end) {
-        alert('No pude determinar el punto final. Intentá seleccionar la palabra donde vas o dejá visible la zona que estás leyendo.');
+      if (!state.measurement.active || !state.measurement.start?.timestamp) return;
+      if (!state.measurement.end) {
+        alert('Marcá primero la palabra final con Ctrl+click.');
         return;
       }
-
-      const minutes = (performance.now() - state.measurement.start.timestamp) / 60000;
-      const words = estimateWordsBetween(state.measurement.start, end);
+      const start = state.measurement.start;
+      const end = state.measurement.end;
+      const minutes = (performance.now() - start.timestamp) / 60000;
+      const words = estimateWordsBetween(start, end);
       const safeWords = Math.max(1, words);
       const wpm = Math.round(safeWords / Math.max(minutes, 1 / 60000));
-
       state.measurement.active = false;
       state.measurement.lastResultWpm = wpm;
-      clearMarkedWord(MEASURE_START_CLASS);
       els.startMeasureBtn.disabled = false;
       els.stopMeasureBtn.disabled = true;
       els.readingWpm.textContent = `${wpm} WPM`;
@@ -780,54 +898,16 @@
       updateSpeedInputsFromMeasurement();
     }
 
-    function resolveMeasurementEnd() {
-      if (state.selectedWord) {
-        return {
-          sectionKey: state.selectedWord.sectionKey,
-          wordIndex: state.selectedWord.wordIndex,
-          text: state.selectedWord.text
-        };
-      }
-      return findCenterVisibleWord();
-    }
-
     function estimateWordsBetween(start, end) {
       if (start.sectionKey === end.sectionKey) {
         return Math.abs(end.wordIndex - start.wordIndex) + 1;
       }
-      const currentSectionWords = state.sectionWordMap.get(end.sectionKey) || [];
+      const endSectionWords = state.sectionWordMap.get(end.sectionKey) || [];
       const startSectionWords = state.sectionWordMap.get(start.sectionKey) || [];
-      if (!startSectionWords.length || !currentSectionWords.length) return 1;
+      if (!startSectionWords.length || !endSectionWords.length) return 1;
       const remainingStart = Math.max(0, startSectionWords.length - start.wordIndex);
       const currentOffset = end.wordIndex + 1;
       return remainingStart + currentOffset;
-    }
-
-    function findCenterVisibleWord() {
-      const content = state.rendition?.getContents?.()[0];
-      if (!content?.document) return null;
-      const doc = content.document;
-      const win = content.window;
-      const cx = win.innerWidth / 2;
-      const cy = win.innerHeight / 2;
-      let best = null;
-      let bestDist = Infinity;
-      doc.querySelectorAll(`.${WORD_CLASS}`).forEach(span => {
-        const rect = span.getBoundingClientRect();
-        if (rect.bottom < 0 || rect.top > win.innerHeight) return;
-        const mx = rect.left + rect.width / 2;
-        const my = rect.top + rect.height / 2;
-        const dist = Math.hypot(mx - cx, my - cy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = {
-            sectionKey: span.dataset.sectionKey,
-            wordIndex: parseInt(span.dataset.wordIndex, 10),
-            text: span.dataset.rawWord
-          };
-        }
-      });
-      return best;
     }
 
     function updateSpeedInputsFromMeasurement() {
@@ -848,17 +928,11 @@
       if (!words.length) return alert('No encuentro palabras en la sección visible.');
 
       state.currentSectionWords = words;
-
       const currentKey = state.currentSectionHref || Array.from(state.sectionWordMap.keys())[0];
       if (state.selectedWord && state.selectedWord.sectionKey === currentKey) {
         state.rsvp.index = clamp(state.selectedWord.wordIndex, 0, words.length - 1);
-      } else {
-        const center = findCenterVisibleWord();
-        if (center && center.sectionKey === currentKey) {
-          state.rsvp.index = clamp(center.wordIndex, 0, words.length - 1);
-        } else if (state.rsvp.index >= words.length) {
-          state.rsvp.index = 0;
-        }
+      } else if (state.rsvp.index >= words.length) {
+        state.rsvp.index = 0;
       }
 
       openOverlay();
@@ -901,20 +975,12 @@
       const plain = clean.replace(/^[¿¡"'“”‘’(\[{]+|["'“”‘’)\]}]+$/g, '');
       const length = plain.length;
       let delay = wpmToDelay(wpm);
-
-      if (length >= 7) {
-        delay *= 1 + Math.min(0.85, (length - 6) * 0.07);
-      }
-
-      if (length > 0 && length <= 3) {
-        delay *= 0.9;
-      }
-
+      if (length >= 7) delay *= 1 + Math.min(0.85, (length - 6) * 0.07);
+      if (length > 0 && length <= 3) delay *= 0.9;
       if (/[,:]/.test(clean)) delay += 90;
       if (/[;–—]/.test(clean)) delay += 140;
       if (/[.!?]/.test(clean)) delay += 220;
       if (/[…]/.test(clean)) delay += 260;
-
       return Math.max(45, Math.round(delay));
     }
 
@@ -1003,7 +1069,7 @@
 
     function setStatus(text, level = 'ok') {
       els.bookStatus.textContent = text;
-      els.bookStatus.className = `small ${level === 'danger' ? 'status-danger' : level === 'warn' ? 'status-warn' : 'muted'}`;
+      els.bookStatus.className = `small ${level === 'danger' ? 'status-danger' : 'muted'}`;
     }
 
     function clearStats() {
@@ -1026,6 +1092,91 @@
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
+    }
+
+    function enableGuide() {
+      state.guideEnabled = true;
+      document.body.style.cursor = 'crosshair';
+      document.addEventListener('mousemove', moveGuide);
+    }
+
+    function disableGuide() {
+      state.guideEnabled = false;
+      document.body.style.cursor = 'default';
+      removeGuide();
+      document.removeEventListener('mousemove', moveGuide);
+    }
+
+    function moveGuide(e) {
+      let line = document.getElementById('guideLine');
+      if (!line) {
+        line = document.createElement('div');
+        line.id = 'guideLine';
+        line.style.position = 'fixed';
+        line.style.left = '0';
+        line.style.width = '100%';
+        line.style.height = '2px';
+        line.style.background = 'rgba(255,255,0,0.4)';
+        line.style.pointerEvents = 'none';
+        line.style.zIndex = '9999';
+        document.body.appendChild(line);
+      }
+      line.style.top = e.clientY + 'px';
+    }
+
+    function removeGuide() {
+      const line = document.getElementById('guideLine');
+      if (line) line.remove();
+    }
+
+    function enableChunking() {
+      state.chunkingEnabled = true;
+      applyCurrentViewTransforms();
+    }
+
+    function disableChunking() {
+      state.chunkingEnabled = false;
+      applyCurrentViewTransforms();
+    }
+
+    function clearChunking(doc) {
+      const chunks = Array.from(doc.querySelectorAll(`.${CHUNK_CLASS}`));
+      chunks.forEach(chunk => {
+        const parent = chunk.parentNode;
+        while (chunk.firstChild) {
+          parent.insertBefore(chunk.firstChild, chunk);
+        }
+        parent.removeChild(chunk);
+      });
+      doc.querySelectorAll(`.${WORD_CLASS}`).forEach(w => {
+        w.style.background = '';
+        w.style.marginRight = '';
+      });
+      repaintMeasurementMarkers();
+    }
+
+    function applyChunking(doc) {
+      clearChunking(doc);
+      const size = clamp(parseInt(els.chunkSize.value || '3', 10), 2, 6);
+      const words = Array.from(doc.querySelectorAll(`.${WORD_CLASS}`));
+      if (!words.length) return;
+
+      for (let i = 0; i < words.length; i += size) {
+        const group = words.slice(i, i + size);
+        const first = group[0];
+        const parent = first.parentNode;
+        if (!parent) continue;
+
+        const chunk = doc.createElement('span');
+        chunk.className = CHUNK_CLASS;
+        parent.insertBefore(chunk, first);
+
+        for (const wordEl of group) {
+          chunk.appendChild(wordEl);
+        }
+      }
+
+      repaintMeasurementMarkers();
     }
 
     init();
