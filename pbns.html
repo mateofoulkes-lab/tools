@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Paint By Numbers Studio</title>
+
+<style>
+  :root{
+    --bg:#eef0f3;
+    --panel:#ffffff;
+    --ink:#20232a;
+    --muted:#6b7280;
+    --line:#d5d9e0;
+    --accent:#4A336D;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family: Arial, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    margin:0;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:370px 1fr;
+    height:100vh;
+  }
+
+  .sidebar{
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:14px;
+    overflow:auto;
+  }
+
+  .logoSlot{
+    }
+
+  .footer{
+    position:sticky;
+    bottom:0;
+    margin-top:16px;
+    padding-top:8px;
+    border-top:1px solid var(--line);
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+    background:var(--panel);
+  }
+
+  .printFooter{
+    position:absolute;
+    bottom:4mm;
+    left:0;
+    right:0;
+    text-align:center;
+    font-size:8pt;
+    color:#777;
+  }
+
+  .logoSlot{
+    height:42px;
+    border:1px dashed #c8cdd6;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:12px;
+    background:#fafafa;
+  }
+
+  h1{ font-size:18px; margin:0 0 14px; letter-spacing:.2px; }
+  h2{ font-size:14px; margin:16px 0 8px; color:var(--accent); text-transform:uppercase; }
+
+  .stepsNav{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:6px;
+    margin-bottom:12px;
+  }
+
+  .stepsNav button{
+    padding:7px 3px;
+    font-size:11px;
+    margin:0;
+  }
+
+  .stepsNav button.active{
+    background:var(--accent);
+    color:#fff;
+    border-color:var(--accent);
+  }
+
+  .stepBox{
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px;
+    background:#fbfbfc;
+  }
+
+  label{ display:block; font-size:12px; color:#333; margin-top:8px; }
+  input[type="number"]{ width:78px; }
+  input[type="range"]{ width:100%; }
+  input[type="file"]{ max-width:100%; }
+  textarea{ width:100%; height:150px; font-family:monospace; }
+
+  .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .twoCols{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+  button{
+    border:1px solid #c9ced8;
+    background:#fff;
+    color:#222;
+    border-radius:8px;
+    padding:7px 10px;
+    margin-top:6px;
+    cursor:pointer;
+  }
+
+  button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; width:100%; font-weight:bold; }
+  button.danger{ border-color:#d9a2a2; color:#8b1d1d; }
+  button:disabled{ opacity:.45; cursor:not-allowed; }
+
+  .smallHint{ font-size:11px; color:var(--muted); margin-top:6px; line-height:1.25; }
+
+  .nudge{ display:grid; grid-template-columns:repeat(3,34px); gap:4px; margin-top:8px; }
+  .nudge button{ width:34px; height:30px; padding:0; margin:0; }
+
+  .previewArea{ min-width:0; height:100vh; display:flex; flex-direction:column; }
+  .previewToolbar{ height:48px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; padding:0 14px; }
+  .previewToolbar b{ font-size:13px; }
+  .previewStage{ flex:1; overflow:auto; padding:18px; background:#d8dbe1; }
+
+  .previewWrap{ position:relative; display:inline-block; background:#ccc; border:1px solid #777; transform-origin:top left; }
+  #previewImage{ display:block; image-rendering:pixelated; }
+  #gridOverlay{ position:absolute; left:0; top:0; pointer-events:none; display:block; z-index:2; }
+
+  #tablePreviewWrap{ display:inline-block; background:#fff; border:1px solid #777; padding:8px; transform-origin:top left; }
+  table.pixelTable{ border-collapse:collapse; line-height:0; }
+  table.pixelTable td{ padding:0; }
+  table.editableTable td{ cursor:crosshair; }
+  table.editableTable td:hover{ outline:2px solid #111; outline-offset:-2px; }
+
+  .hidden{ display:none !important; }
+
+  .previewActions{ display:none; gap:8px; margin-top:10px; }
+  .previewActions.visible{ display:flex; }
+
+  .paletteOptions{ display:flex; flex-direction:column; gap:8px; max-width:100%; }
+  .paletteOption{ border:1px solid #ddd; border-radius:6px; padding:6px; background:#fafafa; }
+  .paletteHeader{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px; font-size:12px; font-weight:bold; }
+  .paletteStrip{ display:flex; flex-wrap:wrap; gap:3px; }
+  .paletteChip{ width:18px; height:18px; border:1px solid #777; box-sizing:border-box; cursor:pointer; }
+
+  .activePaletteList{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+  .activeColor{ width:24px; height:24px; border:1px solid #777; box-sizing:border-box; cursor:pointer; position:relative; border-radius:4px; }
+  .activeColor.selected{ outline:3px solid #111; outline-offset:2px; }
+  .activeColor:hover::after{ content:"×"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.65); font-weight:bold; color:#900; }
+
+  .colors{ display:flex; flex-wrap:wrap; gap:6px; max-width:100%; }
+  .swatch{ font-family:monospace; font-size:12px; display:flex; align-items:center; gap:4px; background:#f4f4f4; padding:3px 6px; border-radius:4px; }
+  .box{ width:18px; height:18px; border:1px solid #777; }
+
+  #workCanvas,#sourceCanvas,#processedCanvas{ display:none; }
+  #printArea{ display:none; }
+
+  .printPalette{ display:flex; flex-direction:column; gap:2.2mm; width:16mm; flex-shrink:0; }
+  .printColor{ display:flex; align-items:center; gap:2mm; font-size:8pt; font-weight:bold; line-height:1; }
+  .printBox{ width:7mm; height:7mm; border:0.35pt solid #999; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .numberGrid{ border-collapse:collapse; margin:0 auto; }
+  .numberGrid td{ border:0.25pt solid #c9c9c9; color:#a8a8a8; text-align:center; vertical-align:middle; padding:0; font-family:Arial, sans-serif; }
+
+  @media print{
+    body{ background:#fff; padding:0; margin:0; overflow:visible; }
+    .app{ display:none !important; }
+    #printArea{ display:block; }
+    @page{ size:A4 portrait; margin:8mm; }
+    .printPage{ width:194mm; height:281mm; box-sizing:border-box; display:flex; gap:5mm; align-items:flex-start; overflow:hidden; page-break-after:always; }
+    #printGridWrap{ flex:1; height:100%; display:flex; align-items:flex-start; justify-content:center; overflow:hidden; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logoSlot" style="height:100px;" ><img src="pbns.png" style="height:180%;" /> </div>
+
+
+    <div class="stepsNav">
+      <button id="navStep1" class="active">1 Pixelizar</button>
+      <button id="navStep2" disabled>2 Paleta</button>
+      <button id="navStep3" disabled>3 Detalles</button>
+    </div>
+
+    <section class="stepBox" id="step1Panel">
+      <h2>Paso 1 · Pixelizar</h2>
+
+      <label>Imagen</label>
+      <input type="file" id="fileInput" accept="image/png,image/*">
+
+      <h2>Grilla</h2>
+      <label><input type="radio" name="gridMode" value="px" checked> Tamaño de celda en píxeles</label>
+      <div class="row">
+        <span>Horizontal</span><input type="number" id="cellSizeX" value="7" min="1">
+        <span>Vertical</span><input type="number" id="cellSizeY" value="7" min="1">
+        <label style="margin:0;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="lockCellRatio" checked> 🔒</label>
+      </div>
+
+      <label><input type="radio" name="gridMode" value="divisions"> Cantidad de divisiones</label>
+      <div class="row">
+        <span>Horiz.</span><input type="number" id="colsInput" value="16" min="1">
+        <span>Vert.</span><input type="number" id="rowsInput" value="24" min="1">
+      </div>
+
+      <h2>Recorte</h2>
+      <div class="twoCols">
+        <label>Izquierda <input type="number" id="cropLeft" value="0" min="0"></label>
+        <label>Derecha <input type="number" id="cropRight" value="0" min="0"></label>
+        <label>Arriba <input type="number" id="cropTop" value="0" min="0"></label>
+        <label>Abajo <input type="number" id="cropBottom" value="0" min="0"></label>
+      </div>
+      <div class="smallHint">El recorte se muestra como borde punteado sobre la imagen.</div>
+
+      <h2>Ajuste fino</h2>
+      <div class="smallHint">Mueve la grilla pixel a pixel sobre la imagen.</div>
+      <div class="nudge">
+        <span></span><button id="upBtn">↑</button><span></span>
+        <button id="leftBtn">←</button><button id="centerBtn">•</button><button id="rightBtn">→</button>
+        <span></span><button id="downBtn">↓</button><span></span>
+      </div>
+
+      <br>
+      <button class="primary" id="previewBtn">Generar previsualización</button>
+      <div class="previewActions" id="previewActions">
+        <button id="discardPreviewBtn">Descartar</button>
+        <button id="nextStepBtn">Pasar al paso 2</button>
+      </div>
+    </section>
+
+    <section class="stepBox hidden" id="step2Panel">
+      <h2>Paso 2 · Paleta</h2>
+
+      <label>Cantidad de colores</label>
+      <div class="row">
+        <input type="number" id="autoColorCount" value="16" min="2" max="64">
+        <button id="autoPaletteBtn">Calcular 5 opciones</button>
+      </div>
+      <div class="smallHint">Elegí una opción para previsualizarla sobre la tabla.</div>
+
+      <h2>Paletas sugeridas</h2>
+      <div id="paletteOptions" class="paletteOptions"></div>
+
+      <h2>Paleta activa</h2>
+      <div class="smallHint">Click: elimina color. Arrastrar un color sobre otro: fusiona y reemplaza las celdas del primero por el segundo.</div>
+      <div id="activePaletteList" class="activePaletteList"></div>
+      <button id="removeRedundantBtn">Borrar colores redundantes</button>
+      <button id="undoPaletteBtn" disabled>Deshacer última acción</button>
+      <button id="restoreOriginalBtn">Restaurar imagen original</button>
+
+      <h2>Importar paleta manual</h2>
+      <textarea id="paletteInput">1  #4A336D
+2  #182355
+3  #553688
+4  #8D3F8B
+5  #5F2146
+6  #49193A
+7  #5D347A
+8  #AE4A7F
+
+9  #FFAE42
+10 #EE556B
+11 #D95672
+12 #FA675F
+13 #FEE79A
+14 #FEC163
+15 #AA3D56
+16 #000000</textarea>
+      <button id="approxBtn">Usar paleta manual</button>
+
+      <hr>
+      <button class="primary" id="goStep3Btn">Pasar al paso 3</button>
+    </section>
+
+    <section class="stepBox hidden" id="step3Panel">
+      <h2>Paso 3 · Detalles</h2>
+      <div class="smallHint">Seleccioná un color y pintá celdas de la tabla para corregir detalles.</div>
+
+      <h2>Color activo</h2>
+      <div id="detailPaletteList" class="activePaletteList"></div>
+
+      <h2>Impresión</h2>
+      <label>Color final de grilla y números</label>
+      <input type="color" id="printGrayInput" value="#A8A8A8">
+      <button class="primary" id="printBtn">Imprimir paint by numbers</button>
+    </section>
+
+    <section class="stepBox hidden">
+      <div id="colorList" class="colors"></div>
+      <div id="output"></div>
+    </section>
+      <div class="footer">Paint By Numbers Studio - Por Mateo Foulkes</div>
+  </aside>
+
+  <main class="previewArea">
+    <div class="previewToolbar">
+      <b>Preview</b>
+      <span>Zoom</span>
+      <input type="range" id="zoomSlider" min="25" max="400" value="100">
+      <span id="zoomLabel">100%</span>
+    </div>
+
+    <div class="previewStage" id="previewStage">
+      <div class="previewWrap hidden" id="previewWrap">
+        <img id="previewImage">
+        <canvas id="gridOverlay"></canvas>
+      </div>
+      <div id="tablePreviewWrap" class="hidden"></div>
+    </div>
+  </main>
+</div>
+
+<div id="printArea">
+  <div class="printPage">
+      <div class="printFooter">Paint By Numbers Studio - Por Mateo Foulkes</div>
+    <div id="printPalette" class="printPalette"></div>
+    <div id="printGridWrap"></div>
+  </div>
+</div>
+
+<canvas id="workCanvas"></canvas>
+<canvas id="sourceCanvas"></canvas>
+<canvas id="processedCanvas"></canvas>
+
+<script>
+/*
+  RESGUARDO DEL FUNCIONAMIENTO ORIGINAL:
+  El motor de trabajo sigue siendo el mismo: sourceImageData / processedImageData,
+  gridColors como tabla de colores, activePalette como paleta de trabajo,
+  numberedGrid para impresión y offset/crop para el muestreo.
+*/
+
+let loadedImage=null, sourceImageData=null, processedImageData=null, usingProcessedImage=false;
+let gridColors=[], numberedGrid=[], appliedPalette=[], activePalette=[], autoPalettes=[];
+let undoStack=[];
+let offsetX=0, offsetY=0;
+let previewMode='image';
+let currentStep=1;
+let selectedDetailColorIndex=0;
+let isPainting=false;
+
+const fileInput=document.getElementById("fileInput");
+const previewImage=document.getElementById("previewImage");
+const previewWrap=document.getElementById("previewWrap");
+const gridOverlay=document.getElementById("gridOverlay");
+const tablePreviewWrap=document.getElementById("tablePreviewWrap");
+const paletteOptions=document.getElementById("paletteOptions");
+const activePaletteList=document.getElementById("activePaletteList");
+const detailPaletteList=document.getElementById("detailPaletteList");
+const zoomSlider=document.getElementById("zoomSlider");
+const zoomLabel=document.getElementById("zoomLabel");
+const previewActions=document.getElementById("previewActions");
+
+fileInput.addEventListener("change", e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image();
+  img.onload=()=>{
+    loadedImage=img; offsetX=0; offsetY=0;
+    prepareSourceImage();
+    restoreOriginalImage(false);
+    previewWrap.classList.remove("hidden");
+    tablePreviewWrap.classList.add("hidden");
+    previewMode='image';
+    setStep(1);
+    requestAnimationFrame(drawGridOverlay);
+  };
+  img.src=URL.createObjectURL(file);
+});
+
+cellSizeX.addEventListener('input',()=>{ if(lockCellRatio.checked) cellSizeY.value=cellSizeX.value; drawGridOverlay(); });
+cellSizeY.addEventListener('input',()=>{ if(lockCellRatio.checked) cellSizeX.value=cellSizeY.value; drawGridOverlay(); });
+lockCellRatio.addEventListener('change',()=>{ if(lockCellRatio.checked) cellSizeY.value=cellSizeX.value; drawGridOverlay(); });
+
+document.querySelectorAll("input").forEach(i=>{ i.addEventListener("input", drawGridOverlay); i.addEventListener("change", drawGridOverlay); });
+
+zoomSlider.addEventListener('input',()=>{
+  const z=+zoomSlider.value/100;
+  zoomLabel.textContent=zoomSlider.value+'%';
+  previewWrap.style.transform=`scale(${z})`;
+  tablePreviewWrap.style.transform=`scale(${z})`;
+});
+
+navStep1.onclick=()=>setStep(1);
+navStep2.onclick=()=>{ if(!navStep2.disabled) setStep(2); };
+navStep3.onclick=()=>{ if(!navStep3.disabled) setStep(3); };
+
+previewBtn.addEventListener('click',()=>{
+  generateTable();
+  renderTablePreview(false);
+  previewMode='table';
+  previewWrap.classList.add('hidden');
+  tablePreviewWrap.classList.remove('hidden');
+  previewActions.classList.add('visible');
+});
+
+discardPreviewBtn.addEventListener('click',()=>{
+  previewMode='image';
+  tablePreviewWrap.classList.add('hidden');
+  previewWrap.classList.remove('hidden');
+  previewActions.classList.remove('visible');
+  requestAnimationFrame(drawGridOverlay);
+});
+
+nextStepBtn.addEventListener('click',()=>{
+  if(!gridColors.length) generateTable();
+  navStep2.disabled=false;
+  setStep(2);
+});
+
+goStep3Btn.addEventListener('click',()=>{
+  if(!gridColors.length) generateTable();
+  navStep3.disabled=false;
+  setStep(3);
+});
+
+printBtn.addEventListener("click",()=>{ buildPrintPage(); window.print(); });
+autoPaletteBtn.addEventListener("click", calculateAutoPalettes);
+approxBtn.addEventListener("click", approximateToManualPalette);
+removeRedundantBtn.addEventListener("click", removeRedundantColors);
+undoPaletteBtn.addEventListener("click", undoLastPaletteAction);
+restoreOriginalBtn.addEventListener("click",()=>restoreOriginalImage(true));
+
+const nudge=1;
+leftBtn.onclick=()=>{ offsetX-=nudge; drawGridOverlay(); };
+rightBtn.onclick=()=>{ offsetX+=nudge; drawGridOverlay(); };
+upBtn.onclick=()=>{ offsetY-=nudge; drawGridOverlay(); };
+downBtn.onclick=()=>{ offsetY+=nudge; drawGridOverlay(); };
+centerBtn.onclick=()=>{ offsetX=0; offsetY=0; drawGridOverlay(); };
+window.addEventListener("resize", drawGridOverlay);
+document.addEventListener('mouseup',()=>isPainting=false);
+
+function setStep(n){
+  currentStep=n;
+  step1Panel.classList.toggle('hidden',n!==1);
+  step2Panel.classList.toggle('hidden',n!==2);
+  step3Panel.classList.toggle('hidden',n!==3);
+  navStep1.classList.toggle('active',n===1);
+  navStep2.classList.toggle('active',n===2);
+  navStep3.classList.toggle('active',n===3);
+
+  if(n===1){
+    previewMode='image';
+    tablePreviewWrap.classList.add('hidden');
+    previewWrap.classList.remove('hidden');
+    requestAnimationFrame(drawGridOverlay);
+  }
+
+  if(n===2){
+    previewMode='table';
+    previewWrap.classList.add('hidden');
+    tablePreviewWrap.classList.remove('hidden');
+    renderTablePreview(false);
+    if(!autoPalettes.length && sourceImageData) calculateAutoPalettes();
+  }
+
+  if(n===3){
+    previewMode='details';
+    previewWrap.classList.add('hidden');
+    tablePreviewWrap.classList.remove('hidden');
+    renderDetailPalette();
+    renderTablePreview(true);
+  }
+}
+
+function prepareSourceImage(){
+  const c=sourceCanvas, ctx=c.getContext("2d",{willReadFrequently:true});
+  c.width=loadedImage.width; c.height=loadedImage.height; ctx.drawImage(loadedImage,0,0);
+  sourceImageData=ctx.getImageData(0,0,c.width,c.height);
+}
+
+function restoreOriginalImage(refresh){
+  if(!sourceImageData) return;
+  usingProcessedImage=false;
+  processedImageData=null;
+  previewImage.src=imageDataToUrl(sourceImageData);
+  previewImage.onload=()=>requestAnimationFrame(drawGridOverlay);
+  if(refresh){
+    generateTable();
+    renderTablePreview(currentStep===3);
+  }
+}
+
+function imageDataToUrl(img){ const c=processedCanvas, ctx=c.getContext("2d"); c.width=img.width; c.height=img.height; ctx.putImageData(img,0,0); return c.toDataURL("image/png"); }
+function currentImageData(){ return (usingProcessedImage && processedImageData)? processedImageData : sourceImageData; }
+
+function getCrop(){
+  if(!loadedImage) return {x:0,y:0,w:0,h:0};
+  const l=clamp(parseInt(cropLeft.value)||0,0,loadedImage.width-1);
+  const r=clamp(parseInt(cropRight.value)||0,0,loadedImage.width-1);
+  const t=clamp(parseInt(cropTop.value)||0,0,loadedImage.height-1);
+  const b=clamp(parseInt(cropBottom.value)||0,0,loadedImage.height-1);
+  return { x:l, y:t, w:Math.max(1,loadedImage.width-l-r), h:Math.max(1,loadedImage.height-t-b) };
+}
+
+function getGridSettings(){
+  if(!loadedImage) return null;
+  const crop=getCrop();
+  const mode=document.querySelector("input[name='gridMode']:checked").value;
+  if(mode==="px"){
+    const cellW=Math.max(1, parseInt(cellSizeX.value)||7);
+    const cellH=Math.max(1, parseInt(cellSizeY.value)||7);
+    return { mode, crop, cols:Math.max(1,Math.floor(crop.w/cellW)), rows:Math.max(1,Math.floor(crop.h/cellH)), cellW, cellH };
+  }
+  const cols=Math.max(1, parseInt(colsInput.value)||16);
+  const rows=Math.max(1, parseInt(rowsInput.value)||24);
+  return { mode, crop, cols, rows, cellW:crop.w/cols, cellH:crop.h/rows };
+}
+
+function drawGridOverlay(){
+  if(!loadedImage || !previewImage.complete || previewMode!=='image') return;
+  const s=getGridSettings(); if(!s) return;
+  const w=previewImage.clientWidth, h=previewImage.clientHeight; if(!w||!h) return;
+  gridOverlay.width=w; gridOverlay.height=h; gridOverlay.style.width=w+"px"; gridOverlay.style.height=h+"px";
+  const ctx=gridOverlay.getContext("2d"); ctx.clearRect(0,0,w,h);
+  const scaleX=w/loadedImage.width, scaleY=h/loadedImage.height;
+  const cropX=s.crop.x*scaleX, cropY=s.crop.y*scaleY, cropW=s.crop.w*scaleX, cropH=s.crop.h*scaleY;
+
+  ctx.save();
+  ctx.strokeStyle="rgba(70,70,70,0.9)";
+  ctx.setLineDash([6,4]);
+  ctx.lineWidth=1.5;
+  ctx.strokeRect(Math.round(cropX)+0.5,Math.round(cropY)+0.5,Math.round(cropW),Math.round(cropH));
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cropX,cropY,cropW,cropH); ctx.clip();
+  ctx.strokeStyle="rgba(120,120,120,0.55)";
+  ctx.lineWidth=1;
+  const offX=offsetX*scaleX, offY=offsetY*scaleY;
+  for(let x=0;x<=s.cols;x++){ const px=cropX+x*cropW/s.cols+offX; ctx.beginPath(); ctx.moveTo(Math.round(px)+0.5,cropY); ctx.lineTo(Math.round(px)+0.5,cropY+cropH); ctx.stroke(); }
+  for(let y=0;y<=s.rows;y++){ const py=cropY+y*cropH/s.rows+offY; ctx.beginPath(); ctx.moveTo(cropX,Math.round(py)+0.5); ctx.lineTo(cropX+cropW,Math.round(py)+0.5); ctx.stroke(); }
+  ctx.restore();
+}
+
+function generateTable(){
+  if(!loadedImage || !currentImageData()) return;
+  const s=getGridSettings(), img=currentImageData();
+  gridColors=[];
+  for(let y=0;y<s.rows;y++){
+    const row=[];
+    for(let x=0;x<s.cols;x++){
+      const sampleX=clamp(Math.floor(s.crop.x+(x+0.5)*s.cellW+offsetX),s.crop.x,s.crop.x+s.crop.w-1);
+      const sampleY=clamp(Math.floor(s.crop.y+(y+0.5)*s.cellH+offsetY),s.crop.y,s.crop.y+s.crop.h-1);
+      const i=(sampleY*img.width+sampleX)*4;
+      row.push({ r:img.data[i], g:img.data[i+1], b:img.data[i+2], a:img.data[i+3] });
+    }
+    gridColors.push(row);
+  }
+  renderColorTable();
+  renderColorList();
+  buildNumberedGridFromCurrentColors();
+}
+
+function renderTablePreview(editable){
+  if(!gridColors.length) return;
+  const s=getGridSettings();
+  const cell=Math.max(5,Math.min(18,Math.floor(900/s.cols)));
+  let html=`<table class="pixelTable ${editable?'editableTable':''}">`;
+  for(let y=0;y<gridColors.length;y++){
+    html+="<tr>";
+    for(let x=0;x<gridColors[y].length;x++){
+      const c=gridColors[y][x];
+      html+=`<td data-x="${x}" data-y="${y}" style="width:${cell}px;height:${cell}px;background:${rgba(c)}"></td>`;
+    }
+    html+="</tr>";
+  }
+  html+=`</table>`;
+  tablePreviewWrap.innerHTML=html;
+
+  if(editable){
+    tablePreviewWrap.querySelectorAll('td').forEach(td=>{
+      td.addEventListener('mousedown',e=>{ isPainting=true; paintCell(td); e.preventDefault(); });
+      td.addEventListener('mouseenter',()=>{ if(isPainting) paintCell(td); });
+    });
+  }
+}
+
+function paintCell(td){
+  if(!activePalette.length) return;
+  const x=+td.dataset.x, y=+td.dataset.y;
+  const c=activePalette[selectedDetailColorIndex] || activePalette[0];
+  gridColors[y][x]={ r:c.r, g:c.g, b:c.b, a:255 };
+  td.style.background=rgbToHex(c.r,c.g,c.b);
+  buildNumberedGridFromCurrentColors();
+}
+
+function pushUndoState(){
+  const paletteCopy=activePalette.map(c=>({...c}));
+  let imageCopy=null;
+  if(processedImageData){ imageCopy=new ImageData(new Uint8ClampedArray(processedImageData.data),processedImageData.width,processedImageData.height); }
+  const gridCopy=gridColors.map(row=>row.map(c=>({...c})));
+  undoStack.push({activePalette:paletteCopy,processedImageData:imageCopy,usingProcessedImage,gridColors:gridCopy});
+  if(undoStack.length>30) undoStack.shift(); updateUndoButton();
+}
+function updateUndoButton(){ const btn=document.getElementById('undoPaletteBtn'); if(btn) btn.disabled=undoStack.length===0; }
+function undoLastPaletteAction(){
+  const state=undoStack.pop(); if(!state) return;
+  activePalette=state.activePalette.map(c=>({...c}));
+  processedImageData=state.processedImageData?new ImageData(new Uint8ClampedArray(state.processedImageData.data),state.processedImageData.width,state.processedImageData.height):null;
+  usingProcessedImage=state.usingProcessedImage;
+  gridColors=state.gridColors.map(row=>row.map(c=>({...c})));
+  renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette);
+  previewImage.src=(usingProcessedImage&&processedImageData)?imageDataToUrl(processedImageData):imageDataToUrl(sourceImageData);
+  previewImage.onload=()=>requestAnimationFrame(drawGridOverlay);
+  renderTablePreview(currentStep===3);
+  buildNumberedGridFromCurrentColors();
+  updateUndoButton();
+}
+
+function approximateToManualPalette(){ const pal=parsePalette(paletteInput.value); if(!pal.length){alert("No encontré colores HEX válidos.");return;} setActivePalette(pal); applyPaletteToImage(activePalette); }
+function setActivePalette(pal){ activePalette=pal.map((c,i)=>({n:i+1,hex:c.hex||rgbToHex(c.r,c.g,c.b),r:c.r,g:c.g,b:c.b,a:255})); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); }
+function renderActivePalette(){
+  activePaletteList.innerHTML=activePalette.map((c,i)=>`<div class="activeColor" draggable="true" title="${i+1} ${c.hex}" style="background:${c.hex}" data-index="${i}"></div>`).join("");
+  activePaletteList.querySelectorAll('.activeColor').forEach(el=>{
+    el.onclick=()=>{ const idx=+el.dataset.index; pushUndoState(); activePalette.splice(idx,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); if(activePalette.length) applyPaletteToImage(activePalette,false); };
+    el.ondragstart=ev=>{ ev.dataTransfer.setData('text/plain',el.dataset.index); ev.dataTransfer.effectAllowed='move'; };
+    el.ondragover=ev=>{ ev.preventDefault(); ev.dataTransfer.dropEffect='move'; };
+    el.ondrop=ev=>{ ev.preventDefault(); ev.stopPropagation(); mergePaletteColor(+ev.dataTransfer.getData('text/plain'),+el.dataset.index); };
+  });
+}
+function renderDetailPalette(){
+  detailPaletteList.innerHTML=activePalette.map((c,i)=>`<div class="activeColor ${i===selectedDetailColorIndex?'selected':''}" title="${i+1} ${c.hex}" style="background:${c.hex}" data-index="${i}"></div>`).join("");
+  detailPaletteList.querySelectorAll('.activeColor').forEach(el=>{
+    el.onclick=()=>{ selectedDetailColorIndex=+el.dataset.index; renderDetailPalette(); };
+  });
+}
+function renumberPalette(p){ p.forEach((c,i)=>c.n=i+1); }
+function mergePaletteColor(fromIndex,toIndex){
+  if(fromIndex===toIndex||fromIndex<0||toIndex<0||fromIndex>=activePalette.length||toIndex>=activePalette.length) return;
+  pushUndoState();
+  const fromColor=activePalette[fromIndex], toColor=activePalette[toIndex];
+  // reemplazo exacto en la tabla actual
+  for(const row of gridColors){
+    for(const c of row){
+      if(c.r===fromColor.r&&c.g===fromColor.g&&c.b===fromColor.b){ c.r=toColor.r; c.g=toColor.g; c.b=toColor.b; c.a=255; }
+    }
+  }
+  // reemplazo exacto en imagen paletizada si existe
+  if(!usingProcessedImage||!processedImageData){ applyPaletteToImage(activePalette,false); }
+  if(processedImageData){
+    const img=processedImageData;
+    for(let i=0;i<img.data.length;i+=4){ if(img.data[i]===fromColor.r&&img.data[i+1]===fromColor.g&&img.data[i+2]===fromColor.b){ img.data[i]=toColor.r; img.data[i+1]=toColor.g; img.data[i+2]=toColor.b; } }
+    usingProcessedImage=true; previewImage.src=imageDataToUrl(img); previewImage.onload=()=>requestAnimationFrame(drawGridOverlay);
+  }
+  activePalette.splice(fromIndex,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
+}
+function syncPaletteTextarea(p){ paletteInput.value=p.map((c,i)=>`${i+1}  ${rgbToHex(c.r,c.g,c.b)}`).join("\n"); }
+function applyPaletteToImage(pal,saveUndo=true){
+  if(saveUndo&&activePalette.length) pushUndoState();
+  if(!sourceImageData||!pal.length) return;
+  const src=sourceImageData, out=new ImageData(src.width,src.height);
+  for(let i=0;i<src.data.length;i+=4){ const o={r:src.data[i],g:src.data[i+1],b:src.data[i+2],a:src.data[i+3]}; const n=nearestColor(o,pal); out.data[i]=n.r; out.data[i+1]=n.g; out.data[i+2]=n.b; out.data[i+3]=o.a; }
+  processedImageData=out; usingProcessedImage=true; previewImage.src=imageDataToUrl(out); previewImage.onload=()=>requestAnimationFrame(drawGridOverlay); generateTable(); renderTablePreview(currentStep===3);
+}
+function removeRedundantColors(){
+  if(!activePalette.length||!gridColors.length) return; pushUndoState();
+  const used=new Set();
+  for(const row of gridColors){ for(const c of row){ used.add(rgbToHex(c.r,c.g,c.b)); } }
+  activePalette=activePalette.filter(c=>used.has(rgbToHex(c.r,c.g,c.b))); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
+}
+function calculateAutoPalettes(){
+  if(!sourceImageData) return;
+  const count=Math.max(2,Math.min(64,parseInt(autoColorCount.value)||16));
+  const samples=sampleImageColors(sourceImageData,14000);
+  autoPalettes=[
+    {name:'Distintos por hue',colors:farthestPalette(samples,count,(a,b)=>hueDistance(a.h,b.h),'hue')},
+    {name:'Distintos por saturación',colors:farthestPalette(samples,count,(a,b)=>Math.abs(a.s-b.s),'sat')},
+    {name:'Distintos por brillo',colors:farthestPalette(samples,count,(a,b)=>Math.abs(a.v-b.v),'bri')},
+    {name:'Promedio H/S/B',colors:farthestPalette(samples,count,hsvAverageDistance,'avg')},
+    {name:'Conveniente: k-means ponderado',colors:kMeansPalette(samples,count,10)}
+  ]; renderAutoPaletteOptions();
+}
+function renderAutoPaletteOptions(){
+  paletteOptions.innerHTML=autoPalettes.map((opt,i)=>`<div class="paletteOption"><div class="paletteHeader"><span>${opt.name}</span><button data-option="${i}">Usar</button></div><div class="paletteStrip">${opt.colors.map(c=>`<div class="paletteChip" style="background:${rgbToHex(c.r,c.g,c.b)}"></div>`).join('')}</div></div>`).join('');
+  paletteOptions.querySelectorAll('button[data-option]').forEach(btn=>{ btn.onclick=()=>{ const opt=autoPalettes[+btn.dataset.option]; setActivePalette(opt.colors); applyPaletteToImage(activePalette); }; });
+}
+function sampleImageColors(img,maxSamples){
+  const data=img.data,total=img.width*img.height,step=Math.max(1,Math.floor(total/maxSamples)),buckets=new Map();
+  for(let p=0;p<total;p+=step){ const i=p*4,a=data[i+3]; if(a<8) continue; const r=data[i],g=data[i+1],b=data[i+2],key=`${r>>3},${g>>3},${b>>3}`; if(!buckets.has(key)){ const hsv=rgbToHsv(r,g,b); buckets.set(key,{r,g,b,h:hsv.h,s:hsv.s,v:hsv.v,count:0}); } buckets.get(key).count++; }
+  return [...buckets.values()];
+}
+function farthestPalette(samples,count,distFn,strategy){
+  if(!samples.length) return []; let selected=[], byCount=[...samples].sort((a,b)=>b.count-a.count);
+  if(strategy==='hue') selected.push(byCount.find(c=>c.s>.25&&c.v>.12)||byCount[0]); else if(strategy==='sat') selected.push([...samples].sort((a,b)=>b.s-a.s)[0]); else if(strategy==='bri') selected.push([...samples].sort((a,b)=>b.v-a.v)[0]); else selected.push(byCount[0]);
+  while(selected.length<count&&selected.length<samples.length){ let best=null,bestScore=-Infinity; for(const c of samples){ if(selected.includes(c)) continue; let minD=Infinity; for(const s of selected){ minD=Math.min(minD,distFn(c,s)); } const score=minD*(1+Math.log(1+c.count)*.12); if(score>bestScore){bestScore=score; best=c;} } if(!best) break; selected.push(best); }
+  return selected.map(c=>({r:c.r,g:c.g,b:c.b,a:255,hex:rgbToHex(c.r,c.g,c.b)}));
+}
+function kMeansPalette(samples,count,iters){
+  if(!samples.length) return []; let centers=farthestPalette(samples,Math.min(count,samples.length),hsvAverageDistance).map(c=>{const hsv=rgbToHsv(c.r,c.g,c.b); return {r:c.r,g:c.g,b:c.b,h:hsv.h,s:hsv.s,v:hsv.v};});
+  for(let it=0;it<iters;it++){ const groups=centers.map(()=>({r:0,g:0,b:0,w:0})); for(const c of samples){ let bi=0,bd=Infinity; for(let i=0;i<centers.length;i++){ const d=rgbDistance(c,centers[i]); if(d<bd){bd=d;bi=i;} } const w=Math.max(1,c.count); groups[bi].r+=c.r*w; groups[bi].g+=c.g*w; groups[bi].b+=c.b*w; groups[bi].w+=w; } centers=centers.map((old,i)=>{const g=groups[i]; if(!g.w) return old; const r=Math.round(g.r/g.w),gg=Math.round(g.g/g.w),b=Math.round(g.b/g.w),hsv=rgbToHsv(r,gg,b); return {r,g:gg,b,h:hsv.h,s:hsv.s,v:hsv.v};}); }
+  return centers.map(c=>({r:c.r,g:c.g,b:c.b,a:255,hex:rgbToHex(c.r,c.g,c.b)}));
+}
+function hueDistance(a,b){ const d=Math.abs(a-b); return Math.min(d,360-d)/180; }
+function hsvAverageDistance(a,b){ return (hueDistance(a.h,b.h)+Math.abs(a.s-b.s)+Math.abs(a.v-b.v))/3; }
+function rgbDistance(a,b){ const dr=a.r-b.r,dg=a.g-b.g,db=a.b-b.b; return dr*dr+dg*dg+db*db; }
+function buildNumberedGridFromCurrentColors(){
+  const used=[], map=new Map(); numberedGrid=gridColors.map(row=>row.map(c=>{ const hex=rgbToHex(c.r,c.g,c.b); if(!map.has(hex)){ map.set(hex,used.length+1); used.push(hex); } return map.get(hex); })); appliedPalette=used.map((hex,i)=>({n:i+1,hex,...hexToRgb(hex)}));
+}
+function renderColorTable(){
+  const s=getGridSettings(); const cell=Math.max(3,Math.min(16,Math.floor(500/s.cols))); let html=`<table class="pixelTable">`; for(const row of gridColors){ html+="<tr>"; for(const c of row){ html+=`<td style="width:${cell}px;height:${cell}px;background:${rgba(c)}"></td>`; } html+="</tr>"; } html+="</table>"; output.innerHTML=html;
+}
+function renderColorList(){
+  const map=new Map(); for(const row of gridColors){ for(const c of row){ const hex=rgbToHex(c.r,c.g,c.b); map.set(hex,(map.get(hex)||0)+1); } } const sorted=[...map.entries()].sort((a,b)=>b[1]-a[1]); colorList.innerHTML=sorted.map(([hex,count])=>`<div class="swatch"><div class="box" style="background:${hex}"></div>${hex} × ${count}</div>`).join("");
+}
+function buildPrintPage(){
+  if(!gridColors.length) generateTable(); buildNumberedGridFromCurrentColors();
+  const rows=numberedGrid.length, cols=numberedGrid[0].length;
+  const maxW=173*.90, maxH=281*.90;
+  let cellMm=Math.min(maxW/cols,maxH/rows);
+  const totalHeight=cellMm*rows; if(totalHeight>maxH){ cellMm=maxH/rows*.99; }
+  const fontPt=Math.max(3.2,Math.min(7,cellMm*2.05));
+  const printGray=document.getElementById('printGrayInput')?.value||'#A8A8A8';
+  printPalette.innerHTML=appliedPalette.map(c=>`<div class="printColor"><div class="printBox" style="background-color:${c.hex} !important;"></div><span>${c.n}</span></div>`).join("");
+  let html=`<table class="numberGrid">`; for(const row of numberedGrid){ html+="<tr>"; for(const n of row){ html+=`<td style="width:${cellMm}mm;height:${cellMm}mm;font-size:${fontPt}pt;color:${printGray};border-color:${printGray};">${n}</td>`; } html+="</tr>"; } html+="</table>"; printGridWrap.innerHTML=html;
+}
+function parsePalette(text){ const m=text.match(/#[0-9a-fA-F]{6}/g)||[]; return m.map((hex,i)=>({n:i+1,hex:hex.toUpperCase(),...hexToRgb(hex),a:255})); }
+function nearestColor(c,pal){ let best=pal[0],bd=Infinity; for(const p of pal){ const dr=c.r-p.r,dg=c.g-p.g,db=c.b-p.b,d=dr*dr+dg*dg+db*db; if(d<bd){bd=d;best=p;} } return {r:best.r,g:best.g,b:best.b,a:c.a}; }
+function rgba(c){ return `rgba(${c.r},${c.g},${c.b},${c.a/255})`; }
+function rgbToHex(r,g,b){ return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); }
+function hexToRgb(hex){ hex=hex.replace("#",""); return {r:parseInt(hex.slice(0,2),16),g:parseInt(hex.slice(2,4),16),b:parseInt(hex.slice(4,6),16)}; }
+function rgbToHsv(r,g,b){ r/=255; g/=255; b/=255; const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min; let h=0; if(d!==0){ if(max===r) h=60*(((g-b)/d)%6); else if(max===g) h=60*(((b-r)/d)+2); else h=60*(((r-g)/d)+4); } if(h<0) h+=360; return {h,s:max===0?0:d/max,v:max}; }
+function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+</script>
+</body>
+</html>
