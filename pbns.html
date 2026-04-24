@@ -191,8 +191,7 @@
 
 <div class="app">
   <aside class="sidebar">
-    <div class="logoSlot" style="height:100px;" ><img src="pbns.png" style="height:180%;" /> </div>
-
+     <div class="logoSlot" style="height:100px;" ><img src="pbns.png" style="height:180%;" /> </div>
 
     <div class="stepsNav">
       <button id="navStep1" class="active">1 Pixelizar</button>
@@ -258,6 +257,19 @@
       <h2>Paletas sugeridas</h2>
       <div id="paletteOptions" class="paletteOptions"></div>
 
+      <h2>Paleta personalizada</h2>
+      <div class="paletteOption" id="customPaletteCard">
+        <div class="paletteHeader">
+          <span>Personalizada</span>
+          <div>
+            <button id="useCustomPaletteBtn">Usar</button>
+            <button id="addColorBtn" title="Agregar color con gotero">＋</button>
+          </div>
+        </div>
+        <div id="customPaletteStrip" class="paletteStrip"></div>
+        <div class="smallHint" id="eyedropperHint">El botón ＋ activa el gotero. Luego hacé click sobre la previsualización para tomar colores de la imagen original.</div>
+      </div>
+
       <h2>Paleta activa</h2>
       <div class="smallHint">Click: elimina color. Arrastrar un color sobre otro: fusiona y reemplaza las celdas del primero por el segundo.</div>
       <div id="activePaletteList" class="activePaletteList"></div>
@@ -299,6 +311,10 @@
       <h2>Impresión</h2>
       <label>Color final de grilla y números</label>
       <input type="color" id="printGrayInput" value="#A8A8A8">
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="clusterPrintInput">
+        Clusterizar celdas adyacentes del mismo color al imprimir
+      </label>
       <button class="primary" id="printBtn">Imprimir paint by numbers</button>
     </section>
 
@@ -348,13 +364,14 @@
 */
 
 let loadedImage=null, sourceImageData=null, processedImageData=null, usingProcessedImage=false;
-let gridColors=[], numberedGrid=[], appliedPalette=[], activePalette=[], autoPalettes=[];
+let gridColors=[], numberedGrid=[], appliedPalette=[], activePalette=[], autoPalettes=[], customPalette=[];
 let undoStack=[];
 let offsetX=0, offsetY=0;
 let previewMode='image';
 let currentStep=1;
 let selectedDetailColorIndex=0;
 let isPainting=false;
+let eyedropperMode=false;
 
 const fileInput=document.getElementById("fileInput");
 const previewImage=document.getElementById("previewImage");
@@ -432,6 +449,17 @@ goStep3Btn.addEventListener('click',()=>{
 
 printBtn.addEventListener("click",()=>{ buildPrintPage(); window.print(); });
 autoPaletteBtn.addEventListener("click", calculateAutoPalettes);
+useCustomPaletteBtn.addEventListener("click",()=>{
+  if(customPalette.length){
+    setActivePalette(customPalette, false);
+    applyPaletteToImage(activePalette);
+  }
+});
+addColorBtn.addEventListener("click",()=>{
+  eyedropperMode=!eyedropperMode;
+  addColorBtn.textContent=eyedropperMode?'Gotero activo':'＋';
+  addColorBtn.classList.toggle('primary',eyedropperMode);
+});
 approxBtn.addEventListener("click", approximateToManualPalette);
 removeRedundantBtn.addEventListener("click", removeRedundantColors);
 undoPaletteBtn.addEventListener("click", undoLastPaletteAction);
@@ -584,6 +612,15 @@ function renderTablePreview(editable){
   html+=`</table>`;
   tablePreviewWrap.innerHTML=html;
 
+  tablePreviewWrap.querySelectorAll('td').forEach(td=>{
+    td.addEventListener('click',e=>{
+      if(currentStep===2 && eyedropperMode){
+        addColorFromOriginalCell(+td.dataset.x,+td.dataset.y,e);
+        e.preventDefault();
+      }
+    });
+  });
+
   if(editable){
     tablePreviewWrap.querySelectorAll('td').forEach(td=>{
       td.addEventListener('mousedown',e=>{ isPainting=true; paintCell(td); e.preventDefault(); });
@@ -616,7 +653,7 @@ function undoLastPaletteAction(){
   processedImageData=state.processedImageData?new ImageData(new Uint8ClampedArray(state.processedImageData.data),state.processedImageData.width,state.processedImageData.height):null;
   usingProcessedImage=state.usingProcessedImage;
   gridColors=state.gridColors.map(row=>row.map(c=>({...c})));
-  renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette);
+  renderActivePalette(); renderDetailPalette(); renderCustomPalette(); syncPaletteTextarea(activePalette);
   previewImage.src=(usingProcessedImage&&processedImageData)?imageDataToUrl(processedImageData):imageDataToUrl(sourceImageData);
   previewImage.onload=()=>requestAnimationFrame(drawGridOverlay);
   renderTablePreview(currentStep===3);
@@ -625,11 +662,80 @@ function undoLastPaletteAction(){
 }
 
 function approximateToManualPalette(){ const pal=parsePalette(paletteInput.value); if(!pal.length){alert("No encontré colores HEX válidos.");return;} setActivePalette(pal); applyPaletteToImage(activePalette); }
-function setActivePalette(pal){ activePalette=pal.map((c,i)=>({n:i+1,hex:c.hex||rgbToHex(c.r,c.g,c.b),r:c.r,g:c.g,b:c.b,a:255})); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); }
+function setActivePalette(pal, alsoLoadCustom=true){
+  activePalette=pal.map((c,i)=>({n:i+1,hex:c.hex||rgbToHex(c.r,c.g,c.b),r:c.r,g:c.g,b:c.b,a:255}));
+
+  if(alsoLoadCustom){
+    customPalette=activePalette.map(c=>({...c}));
+  }
+
+  renderActivePalette();
+  renderDetailPalette();
+  renderCustomPalette();
+  syncPaletteTextarea(activePalette);
+}
+function renderCustomPalette(){
+  const strip=document.getElementById('customPaletteStrip');
+  if(!strip) return;
+
+  strip.innerHTML=customPalette.map((c,i)=>`
+    <div class="paletteChip" title="${i+1} ${rgbToHex(c.r,c.g,c.b)} - click para eliminar" style="background:${rgbToHex(c.r,c.g,c.b)}" data-index="${i}"></div>
+  `).join('');
+
+  strip.querySelectorAll('.paletteChip').forEach(chip=>{
+    chip.onclick=()=>{
+      const idx=+chip.dataset.index;
+      customPalette.splice(idx,1);
+      renumberPalette(customPalette);
+      renderCustomPalette();
+    };
+  });
+}
+
+function addColorFromOriginalCell(x,y,ev=null){
+  if(!sourceImageData) return;
+
+  // Gotero:
+  // - Click normal: toma el color de la imagen/tabla actual.
+  // - Ctrl + click: toma el color de la imagen original, antes de paletizar.
+  const c = ev && ev.ctrlKey
+    ? sampleOriginalColorForCell(x,y)
+    : sampleCurrentColorForCell(x,y);
+
+  addColorToCustomPalette(c);
+}
+
+function sampleCurrentColorForCell(x,y){
+  if(gridColors[y] && gridColors[y][x]){
+    const c=gridColors[y][x];
+    return {r:c.r,g:c.g,b:c.b,a:c.a||255};
+  }
+  return sampleOriginalColorForCell(x,y);
+}
+
+function addColorToCustomPalette(c){
+  const hex=rgbToHex(c.r,c.g,c.b);
+  const exists=customPalette.some(p=>rgbToHex(p.r,p.g,p.b)===hex);
+
+  if(!exists){
+    customPalette.push({n:customPalette.length+1,hex,r:c.r,g:c.g,b:c.b,a:255});
+    renumberPalette(customPalette);
+    renderCustomPalette();
+  }
+}
+
+function sampleOriginalColorForCell(x,y){
+  const s=getGridSettings();
+  const sampleX=clamp(Math.floor(s.crop.x+(x+0.5)*s.cellW+offsetX),s.crop.x,s.crop.x+s.crop.w-1);
+  const sampleY=clamp(Math.floor(s.crop.y+(y+0.5)*s.cellH+offsetY),s.crop.y,s.crop.y+s.crop.h-1);
+  const i=(sampleY*sourceImageData.width+sampleX)*4;
+  return {r:sourceImageData.data[i],g:sourceImageData.data[i+1],b:sourceImageData.data[i+2],a:sourceImageData.data[i+3]};
+}
+
 function renderActivePalette(){
   activePaletteList.innerHTML=activePalette.map((c,i)=>`<div class="activeColor" draggable="true" title="${i+1} ${c.hex}" style="background:${c.hex}" data-index="${i}"></div>`).join("");
   activePaletteList.querySelectorAll('.activeColor').forEach(el=>{
-    el.onclick=()=>{ const idx=+el.dataset.index; pushUndoState(); activePalette.splice(idx,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); if(activePalette.length) applyPaletteToImage(activePalette,false); };
+    el.onclick=()=>{ const idx=+el.dataset.index; pushUndoState(); activePalette.splice(idx,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); renderCustomPalette(); syncPaletteTextarea(activePalette); if(activePalette.length) applyPaletteToImage(activePalette,false); };
     el.ondragstart=ev=>{ ev.dataTransfer.setData('text/plain',el.dataset.index); ev.dataTransfer.effectAllowed='move'; };
     el.ondragover=ev=>{ ev.preventDefault(); ev.dataTransfer.dropEffect='move'; };
     el.ondrop=ev=>{ ev.preventDefault(); ev.stopPropagation(); mergePaletteColor(+ev.dataTransfer.getData('text/plain'),+el.dataset.index); };
@@ -659,7 +765,7 @@ function mergePaletteColor(fromIndex,toIndex){
     for(let i=0;i<img.data.length;i+=4){ if(img.data[i]===fromColor.r&&img.data[i+1]===fromColor.g&&img.data[i+2]===fromColor.b){ img.data[i]=toColor.r; img.data[i+1]=toColor.g; img.data[i+2]=toColor.b; } }
     usingProcessedImage=true; previewImage.src=imageDataToUrl(img); previewImage.onload=()=>requestAnimationFrame(drawGridOverlay);
   }
-  activePalette.splice(fromIndex,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
+  activePalette.splice(fromIndex,1); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); renderCustomPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
 }
 function syncPaletteTextarea(p){ paletteInput.value=p.map((c,i)=>`${i+1}  ${rgbToHex(c.r,c.g,c.b)}`).join("\n"); }
 function applyPaletteToImage(pal,saveUndo=true){
@@ -673,7 +779,7 @@ function removeRedundantColors(){
   if(!activePalette.length||!gridColors.length) return; pushUndoState();
   const used=new Set();
   for(const row of gridColors){ for(const c of row){ used.add(rgbToHex(c.r,c.g,c.b)); } }
-  activePalette=activePalette.filter(c=>used.has(rgbToHex(c.r,c.g,c.b))); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
+  activePalette=activePalette.filter(c=>used.has(rgbToHex(c.r,c.g,c.b))); renumberPalette(activePalette); renderActivePalette(); renderDetailPalette(); renderCustomPalette(); syncPaletteTextarea(activePalette); renderTablePreview(currentStep===3); buildNumberedGridFromCurrentColors();
 }
 function calculateAutoPalettes(){
   if(!sourceImageData) return;
@@ -688,8 +794,18 @@ function calculateAutoPalettes(){
   ]; renderAutoPaletteOptions();
 }
 function renderAutoPaletteOptions(){
-  paletteOptions.innerHTML=autoPalettes.map((opt,i)=>`<div class="paletteOption"><div class="paletteHeader"><span>${opt.name}</span><button data-option="${i}">Usar</button></div><div class="paletteStrip">${opt.colors.map(c=>`<div class="paletteChip" style="background:${rgbToHex(c.r,c.g,c.b)}"></div>`).join('')}</div></div>`).join('');
+  if(!customPalette.length && autoPalettes[0]){
+    customPalette=autoPalettes[0].colors.map((c,i)=>({n:i+1,hex:c.hex||rgbToHex(c.r,c.g,c.b),r:c.r,g:c.g,b:c.b,a:255}));
+  }
+  renderCustomPalette();
+  paletteOptions.innerHTML=autoPalettes.map((opt,i)=>`<div class="paletteOption"><div class="paletteHeader"><span>${opt.name}</span><button data-option="${i}">Usar</button></div><div class="paletteStrip">${opt.colors.map(c=>`<div class="paletteChip" style="background:${rgbToHex(c.r,c.g,c.b)}" data-r="${c.r}" data-g="${c.g}" data-b="${c.b}"></div>`).join('')}</div></div>`).join('');
   paletteOptions.querySelectorAll('button[data-option]').forEach(btn=>{ btn.onclick=()=>{ const opt=autoPalettes[+btn.dataset.option]; setActivePalette(opt.colors); applyPaletteToImage(activePalette); }; });
+  paletteOptions.querySelectorAll('.paletteChip').forEach(chip=>{
+    chip.onclick=()=>{
+      const c={r:+chip.dataset.r,g:+chip.dataset.g,b:+chip.dataset.b,a:255};
+      addColorToCustomPalette(c);
+    };
+  });
 }
 function sampleImageColors(img,maxSamples){
   const data=img.data,total=img.width*img.height,step=Math.max(1,Math.floor(total/maxSamples)),buckets=new Map();
@@ -723,13 +839,134 @@ function buildPrintPage(){
   if(!gridColors.length) generateTable(); buildNumberedGridFromCurrentColors();
   const rows=numberedGrid.length, cols=numberedGrid[0].length;
   const maxW=173*.90, maxH=281*.90;
+  // mantener celdas cuadradas SIEMPRE
   let cellMm=Math.min(maxW/cols,maxH/rows);
   const totalHeight=cellMm*rows; if(totalHeight>maxH){ cellMm=maxH/rows*.99; }
-  const fontPt=Math.max(3.2,Math.min(7,cellMm*2.05));
+  // el texto se adapta al tamaño de la celda (sin forzarla)
+  const clusterMode = document.getElementById('clusterPrintInput')?.checked || false;
+  const fontPt = clusterMode
+    ? Math.max(1.4, Math.min(3.8, cellMm*0.55))
+    : Math.max(2.5, Math.min(6, cellMm*1.6));
   const printGray=document.getElementById('printGrayInput')?.value||'#A8A8A8';
   printPalette.innerHTML=appliedPalette.map(c=>`<div class="printColor"><div class="printBox" style="background-color:${c.hex} !important;"></div><span>${c.n}</span></div>`).join("");
-  let html=`<table class="numberGrid">`; for(const row of numberedGrid){ html+="<tr>"; for(const n of row){ html+=`<td style="width:${cellMm}mm;height:${cellMm}mm;font-size:${fontPt}pt;color:${printGray};border-color:${printGray};">${n}</td>`; } html+="</tr>"; } html+="</table>"; printGridWrap.innerHTML=html;
+  printGridWrap.innerHTML = clusterMode
+    ? buildClusterSvg(cellMm, fontPt, printGray)
+    : buildNumberTable(cellMm, fontPt, printGray);
 }
+function buildNumberTable(cellMm,fontPt,strokeColor){
+  let html=`<table class="numberGrid">`;
+  for(const row of numberedGrid){
+    html+="<tr>";
+    for(const n of row){
+      html+=`<td style="width:${cellMm}mm;height:${cellMm}mm;font-size:${fontPt}pt;color:${strokeColor};border-color:${strokeColor};">${n}</td>`;
+    }
+    html+="</tr>";
+  }
+  html+="</table>";
+  return html;
+}
+
+function buildClusterSvg(cellMm,fontPt,strokeColor){
+  const rows=numberedGrid.length;
+  const cols=numberedGrid[0].length;
+  const w=cols*cellMm;
+  const h=rows*cellMm;
+  const clusters=getColorClusters();
+
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">`;
+  svg+=`<rect x="0" y="0" width="${w}" height="${h}" fill="white"/>`;
+
+  // Dibujamos solo líneas donde cambia el color. Así las celdas iguales quedan unidas.
+  svg+=`<g stroke="${strokeColor}" stroke-width="0.18" fill="none" shape-rendering="crispEdges">`;
+  svg+=`<rect x="0" y="0" width="${w}" height="${h}"/>`;
+
+  for(let y=0;y<rows;y++){
+    for(let x=1;x<cols;x++){
+      if(numberedGrid[y][x]!==numberedGrid[y][x-1]){
+        const px=x*cellMm;
+        svg+=`<line x1="${px}" y1="${y*cellMm}" x2="${px}" y2="${(y+1)*cellMm}"/>`;
+      }
+    }
+  }
+
+  for(let y=1;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      if(numberedGrid[y][x]!==numberedGrid[y-1][x]){
+        const py=y*cellMm;
+        svg+=`<line x1="${x*cellMm}" y1="${py}" x2="${(x+1)*cellMm}" y2="${py}"/>`;
+      }
+    }
+  }
+  svg+=`</g>`;
+
+  svg+=`<g fill="${strokeColor}" font-family="Arial, sans-serif" font-size="${fontPt}pt" text-anchor="middle" dominant-baseline="middle">`;
+  for(const cl of clusters){
+    // Centro por promedio de centros de celdas: funciona mejor que bbox en formas irregulares.
+    const cx=(cl.labelX + 0.5)*cellMm;
+    const cy=(cl.labelY + 0.5)*cellMm;
+    svg+=`<text x="${cx}" y="${cy}">${cl.n}</text>`;
+  }
+  svg+=`</g></svg>`;
+
+  return svg;
+}
+
+function getColorClusters(){
+  const rows=numberedGrid.length;
+  const cols=numberedGrid[0].length;
+  const visited=Array.from({length:rows},()=>Array(cols).fill(false));
+  const clusters=[];
+
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      if(visited[y][x]) continue;
+
+      const n=numberedGrid[y][x];
+      const stack=[[x,y]];
+      visited[y][x]=true;
+      let count=0,sumX=0,sumY=0;
+      const cells=[];
+
+      while(stack.length){
+        const [cx,cy]=stack.pop();
+        count++;
+        sumX+=cx;
+        sumY+=cy;
+        cells.push({x:cx,y:cy});
+
+        const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+        for(const [dx,dy] of dirs){
+          const nx=cx+dx, ny=cy+dy;
+          if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+          if(visited[ny][nx]) continue;
+          if(numberedGrid[ny][nx]!==n) continue;
+          visited[ny][nx]=true;
+          stack.push([nx,ny]);
+        }
+      }
+
+      const targetX=sumX/count;
+      const targetY=sumY/count;
+      let labelX=0,labelY=0,bestDist=Infinity;
+
+      for(const cell of cells){
+        const dx=cell.x-targetX;
+        const dy=cell.y-targetY;
+        const d=dx*dx+dy*dy;
+        if(d<bestDist){
+          bestDist=d;
+          labelX=cell.x;
+          labelY=cell.y;
+        }
+      }
+
+      clusters.push({n,count,sumX,sumY,labelX,labelY});
+    }
+  }
+
+  return clusters;
+}
+
 function parsePalette(text){ const m=text.match(/#[0-9a-fA-F]{6}/g)||[]; return m.map((hex,i)=>({n:i+1,hex:hex.toUpperCase(),...hexToRgb(hex),a:255})); }
 function nearestColor(c,pal){ let best=pal[0],bd=Infinity; for(const p of pal){ const dr=c.r-p.r,dg=c.g-p.g,db=c.b-p.b,d=dr*dr+dg*dg+db*db; if(d<bd){bd=d;best=p;} } return {r:best.r,g:best.g,b:best.b,a:c.a}; }
 function rgba(c){ return `rgba(${c.r},${c.g},${c.b},${c.a/255})`; }
