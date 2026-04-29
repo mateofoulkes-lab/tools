@@ -48,6 +48,8 @@ function App(){
   const dragging = useRef(false);
   const lastPointer = useRef({x:0,y:0});
   const animationStarted = useRef(false);
+  const sensorEvents = useRef({orientation:0,motion:0,lastOrientationTime:0,lastMotionTime:0});
+  const sensorMode = useRef("none");
 
   const [status,setStatus] = useState("Tocá para activar sensores");
   const [angleUI,setAngleUI] = useState({x:0,y:0});
@@ -120,7 +122,10 @@ function App(){
       }
 
       window.removeEventListener("deviceorientation", onOrientation, true);
-      window.addEventListener("deviceorientation", onOrientation, true);
+      window.removeEventListener("devicemotion", onMotion, true);
+
+      if (hasOrientation) window.addEventListener("deviceorientation", onOrientation, true);
+      if (hasMotion) window.addEventListener("devicemotion", onMotion, true);
 
       setStatus("Sensores activos");
     }catch(e){
@@ -129,16 +134,44 @@ function App(){
   }
 
   function onOrientation(e){
+    sensorEvents.current.orientation++;
+    sensorEvents.current.lastOrientationTime = Date.now();
+
+    // Solo usamos orientation si todavía no empezó a llegar motion.
+    // En tu celu orientation puede quedar clavado aunque diga que está activo.
+    if (sensorMode.current === "motion") return;
+
     const beta = Number(e.beta ?? 0);
     const gamma = Number(e.gamma ?? 0);
 
-    // X invertida: antes era +beta. Ahora es -beta.
     const rot = {
       x: clamp(degToRad(-beta), -Math.PI/2, Math.PI/2),
       y: clamp(degToRad(gamma), -Math.PI/2, Math.PI/2)
     };
 
+    sensorMode.current = "orientation";
     applyRotation(rot);
+  }
+
+  function onMotion(e){
+    sensorEvents.current.motion++;
+    sensorEvents.current.lastMotionTime = Date.now();
+
+    const acc = e.accelerationIncludingGravity || e.acceleration || {x:0,y:0,z:0};
+    const ax = Number(acc.x ?? 0);
+    const ay = Number(acc.y ?? 0);
+    const az = Number(acc.z ?? 0);
+
+    // En Android esto suele ser más confiable que deviceorientation.
+    // pitch = adelante/atrás, roll = izquierda/derecha.
+    const pitch = Math.atan2(ay, Math.sqrt(ax*ax + az*az));
+    const roll = Math.atan2(ax, Math.sqrt(ay*ay + az*az));
+
+    sensorMode.current = "motion";
+    applyRotation({
+      x: clamp(-pitch, -Math.PI/2, Math.PI/2),
+      y: clamp(roll, -Math.PI/2, Math.PI/2)
+    });
   }
 
   useEffect(() => {
