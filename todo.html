@@ -11,10 +11,11 @@ body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0
 canvas{border:1px solid #ddd;border-radius:12px;touch-action:none;max-width:100%;background:#fff;display:block;margin:auto}
 input{width:100%}
 textarea{width:100%;min-height:140px;padding:10px;font-size:16px;box-sizing:border-box;resize:vertical;font-family:system-ui,sans-serif}
-button{padding:10px 14px;font-size:16px;border:1px solid #bbb;border-radius:10px;background:#f7f7f7;cursor:pointer}
+button{padding:10px 14px;font-size:16px;border:1px solid #bbb;border-radius:10px;background:#f7f7f7;cursor:pointer;margin-right:8px;margin-bottom:8px}
 button:active{transform:translateY(1px)}
 .muted{color:#666;font-size:14px}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef0ff;color:#3036b8;font-size:13px;margin-left:6px}
+.debug{white-space:pre-wrap;background:#f6f6f6;border:1px solid #ddd;border-radius:10px;padding:10px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#333}
 </style>
 </head>
 <body>
@@ -44,7 +45,8 @@ function App(){
   const [textArea,setTextArea] = useState("");
   const [paddleAngle,setPaddleAngle] = useState(0);
   const [sensorStatus,setSensorStatus] = useState("Sensor no iniciado");
-  const [sensorInfo,setSensorInfo] = useState("Abrí esta misma página en el celular y tocá ‘Activar inclinación’. En la PC deberías ver moverse la paleta.");
+  const [sensorInfo,setSensorInfo] = useState("Abrí esta misma página en el celular y tocá ‘Activar sensores’. En la PC deberías ver moverse la paleta.");
+  const [debug,setDebug] = useState("Sin datos de sensores todavía.");
 
   const canvasRef = useRef(null);
   const sliderRef = useRef(slider);
@@ -52,6 +54,8 @@ function App(){
   const paddleAngleRef = useRef(0);
   const lastSend = useRef(0);
   const draggingPaddle = useRef(false);
+  const sensorEvents = useRef({orientation:0,motion:0,lastOrientationTime:0,lastMotionTime:0});
+  const sensorMode = useRef("none");
 
   db.rooms.useTopicEffect(room, "move", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
@@ -112,6 +116,14 @@ function App(){
     });
   }
 
+  function applyPaddleAngle(angle, sourceLabel){
+    const clean = clamp(Number(angle || 0), -60, 60);
+    paddleAngleRef.current = clean;
+    setPaddleAngle(clean);
+    sendPaddle(clean);
+    sensorMode.current = sourceLabel;
+  }
+
   function onSlider(e){
     const v = Number(e.target.value);
     sliderRef.current = v;
@@ -130,40 +142,126 @@ function App(){
     });
   }
 
-  async function activateTilt(){
+  async function activateSensors(){
     try{
-      if (!window.DeviceOrientationEvent) {
-        setSensorStatus("Este navegador no expone DeviceOrientationEvent.");
+      const secure = window.isSecureContext;
+      const hasOrientation = !!window.DeviceOrientationEvent;
+      const hasMotion = !!window.DeviceMotionEvent;
+
+      setSensorStatus("Pidiendo/activando sensores...");
+      setDebug(
+        `secureContext: ${secure}\n` +
+        `DeviceOrientationEvent: ${hasOrientation}\n` +
+        `DeviceMotionEvent: ${hasMotion}\n` +
+        `orientation permission API: ${typeof DeviceOrientationEvent?.requestPermission === "function"}\n` +
+        `motion permission API: ${typeof DeviceMotionEvent?.requestPermission === "function"}`
+      );
+
+      if (!secure) {
+        setSensorStatus("Esta página no está en contexto seguro. Probalo en GitHub Pages/HTTPS, no en file://.");
         return;
       }
 
-      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      if (hasOrientation && typeof DeviceOrientationEvent.requestPermission === "function") {
         const permission = await DeviceOrientationEvent.requestPermission();
         if (permission !== "granted") {
-          setSensorStatus("Permiso de inclinación denegado.");
+          setSensorStatus("Permiso de orientación denegado.");
           return;
         }
       }
 
-      window.addEventListener("deviceorientation", onDeviceOrientation, true);
-      setSensorStatus("Inclinación activada");
-      setSensorInfo("Mové/incliná el celular de izquierda a derecha. La paleta debería copiar esa inclinación acá y en la PC.");
+      if (hasMotion && typeof DeviceMotionEvent.requestPermission === "function") {
+        const permission = await DeviceMotionEvent.requestPermission();
+        if (permission !== "granted") {
+          setSensorStatus("Permiso de movimiento denegado.");
+          return;
+        }
+      }
+
+      window.removeEventListener("deviceorientation", onDeviceOrientation, true);
+      window.removeEventListener("devicemotion", onDeviceMotion, true);
+
+      if (hasOrientation) window.addEventListener("deviceorientation", onDeviceOrientation, true);
+      if (hasMotion) window.addEventListener("devicemotion", onDeviceMotion, true);
+
+      setSensorStatus("Sensores activados. Mové/incliná el celular.");
+      setSensorInfo("Usando deviceorientation y devicemotion en paralelo. El sistema toma el dato que cambie mejor.");
+
+      setTimeout(() => {
+        const ev = sensorEvents.current;
+        if (ev.orientation === 0 && ev.motion === 0) {
+          setSensorStatus("Sensores activados, pero no llegó ningún evento. Revisá permisos del navegador/sistema.");
+        } else if (ev.orientation <= 1 && ev.motion <= 1) {
+          setSensorStatus("Llegó solo uno o pocos eventos. El navegador podría estar congelando sensores.");
+        } else {
+          setSensorStatus(`Sensores activos · orientation: ${ev.orientation} · motion: ${ev.motion} · modo: ${sensorMode.current}`);
+        }
+      }, 2500);
     }catch(err){
       setSensorStatus("Error activando sensor: " + (err?.message || String(err)));
     }
   }
 
   function onDeviceOrientation(e){
-    // En modo vertical, gamma suele representar inclinación izquierda/derecha.
-    // Lo limitamos para que no se vuelva inmanejable.
-    const gamma = Number(e.gamma ?? 0);
-    const beta = Number(e.beta ?? 0);
-    const angle = clamp(gamma, -60, 60);
+    sensorEvents.current.orientation++;
+    sensorEvents.current.lastOrientationTime = Date.now();
 
-    paddleAngleRef.current = angle;
-    setPaddleAngle(angle);
-    setSensorInfo(`gamma: ${gamma.toFixed(1)}° · beta: ${beta.toFixed(1)}° · paleta: ${angle.toFixed(1)}°`);
-    sendPaddle(angle);
+    const gamma = Number(e.gamma ?? 0); // izquierda/derecha en vertical
+    const beta = Number(e.beta ?? 0);
+    const alpha = Number(e.alpha ?? 0);
+
+    // Si gamma está disponible y cambia, es el dato más directo para nuestro paddle.
+    const angle = clamp(gamma, -60, 60);
+    applyPaddleAngle(angle, "deviceorientation.gamma");
+
+    setSensorInfo(`orientation → alpha: ${alpha.toFixed(1)}° · beta: ${beta.toFixed(1)}° · gamma: ${gamma.toFixed(1)}°`);
+    updateDebug(alpha,beta,gamma,null,null,null);
+  }
+
+  function onDeviceMotion(e){
+    sensorEvents.current.motion++;
+    sensorEvents.current.lastMotionTime = Date.now();
+
+    const acc = e.accelerationIncludingGravity || e.acceleration || {x:0,y:0,z:0};
+    const ax = Number(acc.x ?? 0);
+    const ay = Number(acc.y ?? 0);
+    const az = Number(acc.z ?? 0);
+
+    // Fallback por gravedad: estimación de roll/inclinación izquierda-derecha.
+    // En muchos Android, x cambia bastante al inclinar el celular lateralmente.
+    const rollRad = Math.atan2(ax, Math.sqrt(ay*ay + az*az));
+    const rollDeg = rollRad * 180 / Math.PI;
+
+    // Solo usamos motion como fuente principal si orientation no está llegando fluido
+    // o si el modo actual todavía no se estableció.
+    const now = Date.now();
+    const orientationStale = now - sensorEvents.current.lastOrientationTime > 250;
+    if (orientationStale || sensorMode.current === "none") {
+      applyPaddleAngle(clamp(rollDeg, -60, 60), "devicemotion.gravity");
+      setSensorInfo(`motion → ax: ${ax.toFixed(2)} · ay: ${ay.toFixed(2)} · az: ${az.toFixed(2)} · roll: ${rollDeg.toFixed(1)}°`);
+    }
+
+    updateDebug(null,null,null,ax,ay,az);
+  }
+
+  function updateDebug(alpha,beta,gamma,ax,ay,az){
+    const ev = sensorEvents.current;
+    setDebug(
+      `secureContext: ${window.isSecureContext}\n` +
+      `eventos orientation: ${ev.orientation}\n` +
+      `eventos motion: ${ev.motion}\n` +
+      `modo usado: ${sensorMode.current}\n` +
+      `paddle: ${paddleAngleRef.current.toFixed(2)}°\n` +
+      `alpha: ${fmt(alpha)} · beta: ${fmt(beta)} · gamma: ${fmt(gamma)}\n` +
+      `ax: ${fmt(ax)} · ay: ${fmt(ay)} · az: ${fmt(az)}`
+    );
+  }
+
+  function calibrateZero(){
+    paddleAngleRef.current = 0;
+    setPaddleAngle(0);
+    sendPaddle(0, true);
+    setSensorInfo("Paleta centrada manualmente. Ahora incliná el celular para probar cambios.");
   }
 
   function onCanvasPointerDown(e){
@@ -214,7 +312,8 @@ function App(){
       ),
       React.createElement("p", {className:"muted"}, sensorInfo),
       React.createElement("p", {className:"muted"}, sensorStatus),
-      React.createElement("button", {onClick:activateTilt}, "Activar inclinación"),
+      React.createElement("button", {onClick:activateSensors}, "Activar sensores"),
+      React.createElement("button", {onClick:calibrateZero}, "Centrar paleta"),
       React.createElement("br"),
       React.createElement("br"),
       React.createElement("canvas", {
@@ -226,7 +325,8 @@ function App(){
         onPointerUp:onCanvasPointerUp,
         onPointerCancel:onCanvasPointerUp
       }),
-      React.createElement("p", {className:"muted"}, "Fallback: también podés arrastrar horizontalmente sobre el canvas para simular la inclinación.")
+      React.createElement("p", {className:"muted"}, "Fallback: también podés arrastrar horizontalmente sobre el canvas para simular la inclinación."),
+      React.createElement("div", {className:"debug"}, debug)
     )
   );
 }
@@ -238,12 +338,9 @@ function drawPaddle(canvas, angleDeg){
   const h = canvas.height;
 
   ctx.clearRect(0,0,w,h);
-
-  // Fondo blanco limpio, como la referencia.
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0,0,w,h);
 
-  // Línea/paleta inferior.
   const paddleW = 120;
   const paddleH = 8;
   const cx = w / 2;
@@ -266,7 +363,6 @@ function drawPaddle(canvas, angleDeg){
 
   ctx.restore();
 
-  // Guía muy sutil del centro.
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.font = "13px system-ui";
   ctx.textAlign = "center";
@@ -289,6 +385,10 @@ function roundedRect(ctx, x, y, w, h, r){
 
 function clamp(n, min, max){
   return Math.max(min, Math.min(max, n));
+}
+
+function fmt(v){
+  return v === null || v === undefined || Number.isNaN(Number(v)) ? "-" : Number(v).toFixed(2);
 }
 
 function showError(err){
