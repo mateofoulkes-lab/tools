@@ -61,7 +61,7 @@ function App(){
   const [invertX,setInvertX] = useStoredBool("cubeInvertX", true);
   const [invertY,setInvertY] = useStoredBool("cubeInvertY", true);
   const [smooth,setSmooth] = useStoredNumber("cubeSmooth", 0.65);
-  const [deadzone,setDeadzone] = useStoredNumber("cubeDeadzone", 1.5);
+  const [deadzone,setDeadzone] = useStoredNumber("cubeDeadzone", 2);
 
   const invertXRef = useRef(invertX);
   const invertYRef = useRef(invertY);
