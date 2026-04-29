@@ -297,18 +297,33 @@ function App(){
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      // collision paddle (simple)
-      const dx = b.x - cx;
-      const dy = b.y - cy;
-      const distY = Math.abs(dy);
+      // collision paddle rotated
+      // Convertimos la posición de la bolita al sistema local de la paleta.
+      // Así detecta choque contra la paleta inclinada real, no contra una paleta horizontal invisible.
+      const relX = b.x - cx;
+      const relY = b.y - cy;
+      const cosA = Math.cos(-angle);
+      const sinA = Math.sin(-angle);
+      const localX = relX * cosA - relY * sinA;
+      const localY = relX * sinA + relY * cosA;
+      const radius = 6;
 
-      if (distY < 10 && Math.abs(dx) < paddleW/2 && b.vy > 0){
-        const normalAngle = paddleAngleRef.current * Math.PI/180;
+      if (
+        b.vy > 0 &&
+        Math.abs(localX) <= paddleW / 2 + radius &&
+        Math.abs(localY) <= paddleH / 2 + radius
+      ){
         const speed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
 
-        b.vx = speed * Math.sin(normalAngle);
-        b.vy = -Math.abs(speed * Math.cos(normalAngle));
-        b.y = cy - 10;
+        // Rebote según la normal de la paleta inclinada.
+        b.vx = speed * Math.sin(angle);
+        b.vy = -Math.abs(speed * Math.cos(angle));
+
+        // Reposicionamos la bolita justo arriba de la paleta inclinada,
+        // usando coordenadas locales y volviendo a mundo.
+        const correctedLocalY = -paddleH / 2 - radius - 1;
+        b.x = cx + localX * Math.cos(angle) - correctedLocalY * Math.sin(angle);
+        b.y = cy + localX * Math.sin(angle) + correctedLocalY * Math.cos(angle);
       }
 
       // delete and regenerate if out of canvas
