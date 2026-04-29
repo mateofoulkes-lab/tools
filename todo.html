@@ -1,18 +1,15 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>To Do + Latencia InstantDB</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InstantDB Latency Test</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
-section{border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0}
-input,button{padding:10px;font-size:16px}
-form{display:flex;gap:8px}
-form input{flex:1}
-table{width:100%;border-collapse:collapse;margin-top:10px}
-td{border-bottom:1px solid #ddd;padding:8px}
+body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 16px}
+#error{white-space:pre-wrap;color:#b00020;background:#ffecec;padding:12px;border-radius:10px;display:none}
+.card{border:1px solid #ddd;border-radius:14px;padding:16px;margin:16px 0}
 canvas{border:1px solid #ccc;border-radius:12px;touch-action:none;max-width:100%;background:#fafafa}
+input{width:100%}
 .muted{color:#666;font-size:14px}
 </style>
 </head>
@@ -25,141 +22,105 @@ canvas{border:1px solid #ccc;border-radius:12px;touch-action:none;max-width:100%
 window.APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
 </script>
 
-<div id="root"></div>
+<h1>InstantDB Latency Test</h1>
+<div id="error"></div>
+<div id="root">Cargando...</div>
 
 <script type="module">
 import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18";
 import { createRoot } from "https://esm.sh/react-dom@18/client";
-import { init, id } from "https://esm.sh/@instantdb/react";
+import { init } from "https://esm.sh/@instantdb/react";
 
 const db = init({ appId: window.APP_ID });
 
 const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.randomUUID());
 const SHARED_ID = "11111111-1111-4111-8111-111111111111";
+const room = db.room("latency-test", "main");
 
 function App(){
-  const { isLoading, error, data } = db.useQuery({ todos:{}, syncStates:{} });
+  const { error, data } = db.useQuery({ syncStates: {} });
 
-  const room = useMemo(() => db.room("latency-test", "main"), []);
+  const publishMove = db.rooms.usePublishTopic(room, "move");
 
-  const { peers, publishPresence } = db.rooms.usePresence(room, {
-    initialPresence:{
-      clientId: CLIENT_ID,
-      slider: 50,
-      rotX: -0.3,
-      rotY: 0.6,
-      sentAt: Date.now()
-    }
-  });
-
-  const [text,setText] = useState("");
-  const [slider,setSlider] = useState(50);
-  const [rot,setRot] = useState({x:-0.3,y:0.6});
-  const [latency,setLatency] = useState("Esperando otro dispositivo...");
-  const [remoteCount,setRemoteCount] = useState(0);
-
+  const [slider, setSlider] = useState(50);
+  const [rot, setRot] = useState({ x:-0.3, y:0.6 });
+  const [latency, setLatency] = useState("Esperando movimiento remoto...");
+  const [lastRemote, setLastRemote] = useState("-");
   const canvasRef = useRef(null);
+
+  const sliderRef = useRef(slider);
+  const rotRef = useRef(rot);
   const dragging = useRef(false);
   const last = useRef({x:0,y:0});
-  const rotRef = useRef(rot);
-  const sliderRef = useRef(slider);
 
-  const publishLive = useMemo(() => throttle((next) => {
-    publishPresence({
-      clientId: CLIENT_ID,
-      slider: next.slider,
-      rotX: next.rotX,
-      rotY: next.rotY,
-      sentAt: Date.now()
-    });
-  }, 33), [publishPresence]);
+  db.rooms.useTopicEffect(room, "move", (msg) => {
+    if (!msg || msg.clientId === CLIENT_ID) return;
 
-  const persistSlow = useMemo(() => throttle((next) => {
-    db.transact(db.tx.syncStates[SHARED_ID].update({
-      slider: next.slider,
-      rotX: next.rotX,
-      rotY: next.rotY,
-      sentAt: Date.now(),
-      sender: CLIENT_ID
-    }));
-  }, 500), []);
+    const nextSlider = Number(msg.slider ?? 50);
+    const nextRot = {
+      x: Number(msg.rotX ?? -0.3),
+      y: Number(msg.rotY ?? 0.6)
+    };
+
+    sliderRef.current = nextSlider;
+    rotRef.current = nextRot;
+
+    setSlider(nextSlider);
+    setRot(nextRot);
+
+    const lag = Date.now() - Number(msg.sentAt ?? Date.now());
+    setLatency(`Latencia topic aprox: ${lag} ms`);
+    setLastRemote(new Date().toLocaleTimeString());
+  });
 
   useEffect(() => {
     const saved = (data?.syncStates ?? []).find(x => x.id === SHARED_ID);
     if (!saved) return;
 
-    if (saved.sender !== CLIENT_ID && !dragging.current) {
-      const nextSlider = saved.slider ?? 50;
-      const nextRot = {
-        x: saved.rotX ?? -0.3,
-        y: saved.rotY ?? 0.6
-      };
-      setSlider(nextSlider);
-      setRot(nextRot);
-      sliderRef.current = nextSlider;
-      rotRef.current = nextRot;
-    }
-  }, [data?.syncStates]);
-
-  useEffect(() => {
-    const list = Object.values(peers ?? {});
-    setRemoteCount(list.length);
-
-    if (!list.length || dragging.current) return;
-
-    const latest = list
-      .filter(p => p.clientId !== CLIENT_ID)
-      .sort((a,b)=>(b.sentAt ?? 0)-(a.sentAt ?? 0))[0];
-
-    if (!latest) return;
-
-    const nextSlider = latest.slider ?? 50;
+    const nextSlider = Number(saved.slider ?? 50);
     const nextRot = {
-      x: latest.rotX ?? -0.3,
-      y: latest.rotY ?? 0.6
+      x: Number(saved.rotX ?? -0.3),
+      y: Number(saved.rotY ?? 0.6)
     };
 
-    setSlider(nextSlider);
-    setRot(nextRot);
     sliderRef.current = nextSlider;
     rotRef.current = nextRot;
+    setSlider(nextSlider);
+    setRot(nextRot);
+  }, [data]);
 
-    const lag = Date.now() - (latest.sentAt ?? Date.now());
-    setLatency("Latencia presence aprox: " + lag + " ms");
-  }, [peers]);
+  useEffect(() => {
+    drawCube(canvasRef.current, rot.x, rot.y);
+  }, [rot]);
 
-  useEffect(() => drawCube(canvasRef.current, rot.x, rot.y), [rot]);
+  const persistSlow = useMemo(() => throttle((payload) => {
+    db.transact(db.tx.syncStates[SHARED_ID].update({
+      slider: payload.slider,
+      rotX: payload.rotX,
+      rotY: payload.rotY,
+      sentAt: payload.sentAt,
+      sender: CLIENT_ID
+    })).catch(showError);
+  }, 500), []);
 
-  if (error) return h("p", null, "Error: " + error.message);
-
-  const todos = (data?.todos ?? []).sort((a,b)=>(b.createdAt??0)-(a.createdAt??0));
-
-  async function addTodo(e){
-    e.preventDefault();
-    if(!text.trim()) return;
-    await db.transact(db.tx.todos[id()].create({
-      text:text.trim(),
-      done:false,
-      createdAt:Date.now()
-    }));
-    setText("");
-  }
-
-  function sendState(nextSlider, nextRot){
+  const send = useMemo(() => throttle((nextSlider, nextRot) => {
     const payload = {
+      clientId: CLIENT_ID,
       slider: Number(nextSlider),
       rotX: nextRot.x,
-      rotY: nextRot.y
+      rotY: nextRot.y,
+      sentAt: Date.now()
     };
-    publishLive(payload);
+
+    publishMove(payload);
     persistSlow(payload);
-  }
+  }, 33), [publishMove, persistSlow]);
 
   function onSlider(e){
     const value = Number(e.target.value);
-    setSlider(value);
     sliderRef.current = value;
-    sendState(value, rotRef.current);
+    setSlider(value);
+    send(value, rotRef.current);
   }
 
   function pointerDown(e){
@@ -169,7 +130,7 @@ function App(){
   }
 
   function pointerMove(e){
-    if(!dragging.current) return;
+    if (!dragging.current) return;
 
     const dx = e.clientX - last.current.x;
     const dy = e.clientY - last.current.y;
@@ -182,53 +143,24 @@ function App(){
 
     rotRef.current = nextRot;
     setRot(nextRot);
-    sendState(sliderRef.current, nextRot);
+    send(sliderRef.current, nextRot);
   }
 
   function pointerUp(){
     dragging.current = false;
-    sendState(sliderRef.current, rotRef.current);
+    send(sliderRef.current, rotRef.current);
   }
 
-  return h("main", null,
-    h("h1", null, "To Do + prueba de latencia"),
-    h("div", {className:"muted"},
-      isLoading ? "Conectando..." : `Sincronizado · peers remotos: ${remoteCount}`
-    ),
+  if (error) return h("pre", null, error.message);
 
-    h("section", null,
-      h("h2", null, "To Do"),
-      h("form", {onSubmit:addTodo},
-        h("input", {value:text, onChange:e=>setText(e.target.value), placeholder:"Nueva tarea"}),
-        h("button", null, "Agregar")
-      ),
-      h("table", null,
-        h("tbody", null,
-          todos.map(t => h("tr", {key:t.id},
-            h("td", null, t.text),
-            h("td", null,
-              h("button", {onClick:()=>db.transact(db.tx.todos[t.id].delete())}, "Borrar")
-            )
-          ))
-        )
-      )
-    ),
-
-    h("section", null,
-      h("h2", null, "Prueba tiempo real"),
+  return h("div", null,
+    h("div", {className:"card"},
       h("p", {className:"muted"}, latency),
+      h("p", {className:"muted"}, "Último remoto: ", lastRemote),
       h("label", null, "Slider: ", h("b", null, slider)),
-      h("br"),
-      h("input", {
-        type:"range",
-        min:0,
-        max:100,
-        value:slider,
-        onInput:onSlider,
-        style:{width:"100%"}
-      }),
-      h("br"),
-      h("br"),
+      h("input", {type:"range", min:0, max:100, value:slider, onInput:onSlider})
+    ),
+    h("div", {className:"card"},
       h("canvas", {
         ref:canvasRef,
         width:400,
@@ -247,7 +179,7 @@ function h(type, props, ...children){
 }
 
 function drawCube(canvas, rotX, rotY){
-  if(!canvas) return;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0,0,400,300);
 
@@ -281,23 +213,24 @@ function rotate([x,y,z], rotX, rotY){
   const cx=Math.cos(rotX), sx=Math.sin(rotX);
   const cy=Math.cos(rotY), sy=Math.sin(rotY);
 
-  let y1 = y*cx - z*sx;
-  let z1 = y*sx + z*cx;
-  let x2 = x*cy + z1*sy;
-  let z2 = -x*sy + z1*cy;
+  const y1 = y*cx - z*sx;
+  const z1 = y*sx + z*cx;
+  const x2 = x*cy + z1*sy;
+  const z2 = -x*sy + z1*cy;
 
   return [x2,y1,z2];
 }
 
 function project([x,y,z]){
-  const d=400;
-  const s=d/(d-z);
-  return {x:200+x*s,y:150+y*s};
+  const d = 400;
+  const s = d / (d - z);
+  return { x:200 + x*s, y:150 + y*s };
 }
 
 function throttle(fn, delay){
   let last = 0;
   let timer = null;
+
   return (...args) => {
     const now = Date.now();
     const remaining = delay - (now - last);
@@ -315,7 +248,18 @@ function throttle(fn, delay){
   };
 }
 
-createRoot(document.getElementById("root")).render(h(App));
+function showError(err){
+  const el = document.getElementById("error");
+  el.style.display = "block";
+  el.textContent = err?.message ?? String(err);
+  console.error(err);
+}
+
+try {
+  createRoot(document.getElementById("root")).render(h(App));
+} catch (err) {
+  showError(err);
+}
 </script>
 </body>
 </html>
