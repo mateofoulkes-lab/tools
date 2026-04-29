@@ -1,279 +1,153 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Mazmorra Planetaria RPG — MVP</title>
-<style>
-  :root{
-    --bg:#0b0d10;
-    --panel:#151922;
-    --panel2:#1d2330;
-    --panel3:#242c3b;
-    --line:#343d50;
-    --text:#edf2ff;
-    --muted:#9aa7bd;
-    --accent:#8fd3ff;
-    --good:#79e28c;
-    --bad:#ff6f6f;
-    --warn:#ffd166;
-    --magic:#c49bff;
-    --gold:#ffd36b;
-    --green:#71e6a2;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0;
-    background:radial-gradient(circle at top,#182033 0,#0b0d10 45%,#07080b 100%);
-    color:var(--text);
-    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    min-height:100vh;
-    overflow:hidden;
-  }
-  button,select{font:inherit;}
-  button{
-    background:#263044;
-    color:var(--text);
-    border:1px solid #3a465d;
-    border-radius:10px;
-    padding:8px 10px;
-    cursor:pointer;
-    transition:.12s;
-  }
-  button:hover{background:#33405a; transform:translateY(-1px)}
-  button:disabled{opacity:.45; cursor:not-allowed; transform:none}
-  .app{height:100vh;display:grid;grid-template-rows:auto 1fr auto;}
-  .topbar{display:grid;grid-template-columns:1fr auto;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(13,16,22,.88);backdrop-filter:blur(8px);}
-  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-  .pill{border:1px solid var(--line);background:rgba(255,255,255,.045);padding:7px 10px;border-radius:999px;color:var(--muted);white-space:nowrap;}
-  .pill strong{color:var(--text)} .timer strong{color:var(--warn)}
-  .main{display:grid;grid-template-columns:290px 1fr 330px;gap:12px;padding:12px;min-height:0;}
-  .panel{background:linear-gradient(180deg,rgba(31,38,52,.94),rgba(18,22,31,.94));border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden;min-height:0;}
-  .panel h2,.panel h3{margin:0;padding:12px 14px;border-bottom:1px solid var(--line);font-size:15px;letter-spacing:.3px;color:#dfe8ff;background:rgba(255,255,255,.035);}
-  .panel-body{padding:12px;overflow:auto;max-height:100%;}
-  .map-grid{display:grid;grid-template-columns:repeat(7,32px);grid-auto-rows:32px;gap:5px;justify-content:center;padding:10px 0;}
-  .cell{border:1px solid #2c3446;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#101520;color:#657086;position:relative;font-size:17px;}
-  .cell.known{background:#202838;color:#cfd8ef}.cell.current{outline:2px solid var(--accent);box-shadow:0 0 14px rgba(143,211,255,.5)}.cell.safe{background:rgba(61,146,94,.25)}.cell.boss{background:rgba(150,72,72,.25)}
-  .cell.enemy::after,.cell.corpse::after{content:"";width:7px;height:7px;border-radius:50%;position:absolute;right:4px;top:4px}.cell.enemy::after{background:var(--bad)}.cell.corpse::after{background:#b9b9b9}
-  .legend{font-size:12px;color:var(--muted);line-height:1.6;margin-top:8px}
-  .scene{display:grid;grid-template-rows:auto 1fr auto;}
-  .scene-header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-  .scene-title{font-size:22px;font-weight:800}.scene-subtitle{color:var(--muted);margin-top:3px}.scene-icon{font-size:40px;line-height:1;}
-  .scene-content{padding:16px;overflow:auto;min-height:0}.description{line-height:1.55;color:#dce5f6;white-space:pre-line;}
-  .actions{padding:12px;border-top:1px solid var(--line);background:rgba(255,255,255,.025);display:flex;gap:8px;flex-wrap:wrap;}
-  .log{font-size:13px;line-height:1.35}.log-entry{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07)}.log-entry.good{color:#b7ffc4}.log-entry.bad{color:#ffb4b4}.log-entry.warn{color:#ffe3a1}.log-entry.magic{color:#ddc3ff}
-  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;border-bottom:1px solid var(--line)}.tabs button{font-size:12px;padding:7px 5px}.tabs button.active{background:#3e5275;border-color:#6682af;}
-  .statline,.itemline,.skillline,.questline{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
-  .muted{color:var(--muted)}.small{font-size:12px}.bar{height:9px;background:#0c1018;border:1px solid #30394c;border-radius:999px;overflow:hidden;min-width:90px}.bar>span{display:block;height:100%;background:var(--good)}.bar.mana>span{background:var(--magic)}.bar.bad>span{background:var(--bad)}
-  .char-card{padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.035);margin-bottom:10px}.char-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}.equipment-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.slot{padding:8px;border:1px dashed #4a556f;border-radius:12px;min-height:48px;background:rgba(0,0,0,.13)}.slot b{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;z-index:20;padding:18px}.modal.show{display:flex}.modal-card{width:min(920px,100%);max-height:88vh;overflow:auto;background:linear-gradient(180deg,#1f2736,#111722);border:1px solid #4a5872;border-radius:22px;box-shadow:0 25px 80px rgba(0,0,0,.6)}.modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}.modal-body{padding:16px}.combat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.enemy-card{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);margin-bottom:8px}.big-versus{text-align:center;font-size:42px;font-weight:900;color:#ff7676;text-shadow:0 0 20px rgba(255,70,70,.35);margin:10px 0}.footer{padding:8px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;justify-content:space-between;background:rgba(13,16,22,.9)}.badge{color:#111;background:var(--gold);border-radius:999px;padding:2px 7px;font-size:12px;font-weight:700}.dangerText{color:var(--bad);font-weight:700}.goodText{color:var(--good);font-weight:700}.goldText{color:var(--gold);font-weight:700}.magicText{color:var(--magic);font-weight:700}
-  @media(max-width:1050px){body{overflow:auto}.app{height:auto;min-height:100vh}.main{grid-template-columns:1fr}.panel{min-height:auto}}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>To Do List - InstantDB</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    h1 { margin-bottom: 4px; }
+    .muted { color: #666; font-size: 14px; }
+    form { display: flex; gap: 8px; margin: 20px 0; }
+    input { padding: 10px; font-size: 16px; flex: 1; }
+    button { padding: 10px 12px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
+    .done { text-decoration: line-through; color: #777; }
+    .actions { white-space: nowrap; }
+  </style>
 </head>
 <body>
-<div class="app">
-  <div class="topbar"><div class="hud" id="hud"></div><div class="hud"><button onclick="openModal('help')">❔ Ayuda</button><button onclick="saveGame()">💾 Guardar</button><button onclick="loadGame()">📂 Cargar</button><button onclick="resetGame()">♻ Reiniciar</button></div></div>
-  <div class="main">
-    <section class="panel"><h2>🧭 Minimapa</h2><div class="panel-body"><div class="map-grid" id="mapGrid"></div><div class="legend">🟦 vos · 🐱 Dónut · 🟨 safe room · ☠ boss · 🔴 enemigo · ✖ cadáver<br>Las zonas no exploradas aparecen oscuras. Los mapas de barrio revelan alrededor.</div></div></section>
-    <section class="panel scene"><div class="scene-header"><div><div class="scene-title" id="sceneTitle"></div><div class="scene-subtitle" id="sceneSubtitle"></div></div><div class="scene-icon" id="sceneIcon"></div></div><div class="scene-content"><div class="description" id="sceneDescription"></div></div><div class="actions" id="actions"></div></section>
-    <section class="panel"><div class="tabs"><button id="tab-personaje" onclick="setSideTab('personaje')">👤 Personaje</button><button id="tab-inv" onclick="setSideTab('inv')">🎒 Inventario</button><button id="tab-skills" onclick="setSideTab('skills')">📚 Skills</button><button id="tab-log" onclick="setSideTab('log')">📁 Log</button></div><div class="panel-body" id="sidePanel"></div></section>
-  </div>
-  <div class="footer"><div>Prototype HTML single-file · Mazmorra Planetaria MVP</div><div id="footerStatus"></div></div>
-</div>
-<div class="modal" id="modal"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle" style="margin:0"></h2><button onclick="closeModal()">✖</button></div><div class="modal-body" id="modalBody"></div></div></div>
-<script>
-"use strict";
-const clamp=(n,min,max)=>Math.max(min,Math.min(max,n)); const rnd=(min,max)=>Math.floor(Math.random()*(max-min+1))+min; const pct=(a,b)=>b<=0?0:Math.round((a/b)*100); const deepClone=obj=>JSON.parse(JSON.stringify(obj));
-const FLOOR_START_HOURS=4*24+3;
-const LOOP_TARGETS={exploreNodes:8,killEnemies:14};
-const MAX_COMBAT_ENEMIES=6;
-const DB={
-  items:{
-    healingPotion:{name:"Poción de sanación",icon:"🧪",type:"consumable",desc:"Cura 50% de la salud máxima.",use:"heal",value:.5,stack:true}, manaPotion:{name:"Poción de maná",icon:"🔮",type:"consumable",desc:"Restaura 8 puntos de maná.",use:"mana",value:8,stack:true}, torch:{name:"Antorcha",icon:"🔥",type:"utility",desc:"Ilumina durante 30 minutos.",stack:true}, bandage:{name:"Vendas",icon:"🩹",type:"consumable",desc:"Detiene Hemorragia.",use:"bleed",stack:true}, ironSkin:{name:"Poción de Piel de hierro",icon:"🧴",type:"consumable",desc:"Duplica armadura física por un combate.",use:"ironSkin",stack:true}, dynamite:{name:"Dinamita goblin",icon:"💣",type:"explosive",desc:"Muy volátil. Ataque de área enorme, pero te puede hacer daño.",stack:true}, frogClub:{name:"Garrote de sapo",icon:"🏏",type:"weapon",slot:"weapon",desc:"Palo grande para trompazo. Bastante malo.",atk:4}, poker:{name:"Atizador",icon:"🪝",type:"weapon",slot:"weapon",desc:"Hierro de chimenea. Sirve, más o menos.",atk:3}, trollShirt:{name:"Camisa de piel de trol",icon:"👕",type:"armor",slot:"innerTorso",desc:"+7 Regeneración. Ideal para tanquear.",bonuses:{regen:7}}, nightCloak:{name:"Capa de nictofúnebre",icon:"🦇",type:"armor",slot:"cloak",desc:"+4 CON, resiste veneno/hielo.",bonuses:{constitution:4},resists:["poison","ice"]}, toeRing:{name:"Anillo de pie de la mofeta",icon:"💍",type:"accessory",slot:"toe",desc:"+3 FUE, +3 Golpe poderoso.",bonuses:{strength:3,powerStrike:3}}, riotKnees:{name:"Rodilleras con pinchos",icon:"🦔",type:"armor",slot:"legs",desc:"+10% devolver daño. Cancela ataques de impulso.",bonuses:{reflect:10},cancelsMomentum:true}, butterfly:{name:"Talismán mariposa pizarra",icon:"🦋",type:"accessory",slot:"neck",desc:"+4 Pies ligeros, +1 INT. Tintinea.",bonuses:{intelligence:1,lightFeet:4},noisy:true}, warGauntlets:{name:"Guanteletes de guerra",icon:"🥊",type:"armor",slot:"hands",desc:"Protegen manos y conservan bonus de puño limpio.",bonuses:{ironFistGear:1}}, mapNeighborhood:{name:"Mapa de barrio",icon:"🗺️",type:"quest",desc:"Revela un radio alrededor del jefe vencido.",stack:true}, scattererShell:{name:"Caparazón de desperdigador",icon:"🐚",type:"material",desc:"Material de creación.",stack:true}, hemolymph:{name:"Hemolinfa de desperdigador",icon:"🧫",type:"material",desc:"Material alquímico.",stack:true}, ratFur:{name:"Pelaje de rata",icon:"🧶",type:"material",desc:"Material común.",stack:true}, rawSteak:{name:"Filete crudo",icon:"🥩",type:"food",desc:"Comida cruda.",stack:true}, pants:{name:"Pantalones tácticos ridículos",icon:"👖",type:"armor",slot:"pants",desc:"Por fin. La dignidad mínima.",bonuses:{armor:1}}, brassKnuckles:{name:"Puño americano dentado",icon:"👊",type:"weapon",slot:"fist",desc:"Protege nudillos y mejora golpes sin armas.",bonuses:{ironFistGear:1},atk:5}, septicCrown:{name:"Corona de la furcia de la septicemia",icon:"👑",type:"armor",slot:"head",desc:"+5 INT, +5 buena impresión, 15% septicemia.",bonuses:{intelligence:5,firstImpression:5}}
-  },
-  lootBoxes:{bronzeAdventurer:{name:"Caja de aventurero de bronce",icon:"📦",rarity:1,drops:[["healingPotion",2],["torch",1],["bandage",1]]},silverAdventurer:{name:"Caja de aventurero de plata",icon:"🎁",rarity:2,drops:[["healingPotion",3],["manaPotion",2],["torch",5],["bandage",2]]},bronzeWeapon:{name:"Caja de armas de bronce",icon:"🧰",rarity:1,drops:[["frogClub",1],["poker",1]]},silverGoblin:{name:"Caja goblin de plata",icon:"🧨",rarity:2,drops:[["dynamite",5],["torch",1]]},goldCrowd:{name:"Caja de control de multitudes de oro",icon:"🏆",rarity:3,drops:[["riotKnees",1],["ironSkin",3],["dynamite",2]]},bronzeBoss:{name:"Caja de jefe de bronce",icon:"☠️",rarity:1,drops:[["warGauntlets",1],["manaPotion",3]]},dignityBox:{name:"Caja de dignidad textil",icon:"👖",rarity:2,drops:[["pants",1],["healingPotion",2]]}},
-  enemies:{rat:{name:"Rata gigante",icon:"🐀",level:2,hp:14,atk:4,desc:"Chillona, venenosa y demasiado grande.",statusOnHit:"poison",loot:[["ratFur",1]],xp:18},scatterer:{name:"Desperdigador",icon:"🪳",level:2,hp:16,atk:4,desc:"Cucaracha tamaño pan. Cruje feo.",loot:[["scattererShell",1]],xp:20},guardian:{name:"Guardián de nidada",icon:"🪲",level:4,hp:40,atk:8,desc:"Versión grande y rabiosa. Puede cargar.",loot:[["hemolymph",1]],xp:42,momentum:true},evilLlama:{name:"Llama maligna",icon:"🦙",level:3,hp:55,atk:10,desc:"Escupe lava. Quizá comerciaba antes de que alguien le disparara.",loot:[["rawSteak",2]],xp:55,lava:true},hoarder:{name:"La Acaparadora",icon:"🧟",level:7,hp:140,atk:12,desc:"Jefe de barrio. Vomita desperdigadores y protege su basura.",loot:[["mapNeighborhood",1]],xp:180,boss:true}}
-};
-Object.assign(DB.enemies,{
-  ductSpider:{name:"Araña de ducto",icon:"🕷️",level:2,hp:18,atk:5,desc:"Se mueve entre rejillas y te cae en la cara.",statusOnHit:"poison",poison:true,loot:[["ratFur",1],["venomSac",1]],xp:24},
-  youngNightbat:{name:"Nictofúnebre joven",icon:"🦇",level:3,hp:22,atk:7,desc:"Aletea en zigzag y muerde tendones.",armorPiercing:true,hatesGoblinPass:true,loot:[["nightWing",1]],xp:30},
-  stragglerGoblin:{name:"Goblin rezagado",icon:"🧌",level:2,hp:20,atk:4,desc:"Viene tarde hasta para pelear.",neutralWithGoblinPass:true,loot:[["goblinPass",1],["manaPotion",1]],xp:16},
-  acidLarva:{name:"Larva ácida",icon:"🐛",level:3,hp:26,atk:6,desc:"Chorrea ácido y mala educación.",armorPiercing:true,weakToStomp:true,loot:[["acidSlime",1]],xp:28},
-  pipeSnake:{name:"Serpiente de tubería",icon:"🐍",level:3,hp:14,atk:8,desc:"Rápida, sucia, venenosa.",statusOnHit:"poison",poison:true,fleeOnLowHp:true,loot:[["venomSac",1]],xp:27},
-  trashWorm:{name:"Gusano de basura",icon:"🪱",level:3,hp:24,atk:6,desc:"Se arrastra por desperdicios con hambre.",bleed:true,weakToStomp:true,loot:[["wormTooth",1]],xp:26},
-  mutantRaccoon:{name:"Mapache mutado",icon:"🦝",level:4,hp:30,atk:7,desc:"Te mira feo y te roba snacks.",stealsItem:true,loot:[["rawSteak",1],["ratFur",1]],xp:34},
-  recycledSkeleton:{name:"Esqueleto reciclado",icon:"🦴",level:4,hp:34,atk:7,desc:"Un rejunte de huesos con rencor.",immuneToPoison:true,physicalResist:true,loot:[["boneShard",2]],xp:36},
-  bitterFae:{name:"Feérico resentido",icon:"🧚",level:5,hp:28,atk:9,desc:"Brilla bonito, pega horrible.",weakToMagic:true,hatesGoblinPass:true,magicResist:true,loot:[["fairyDust",1]],xp:44},
-  recycledHuman:{name:"Humano reciclado",icon:"🧟",level:5,hp:44,atk:9,desc:"Mirada perdida, golpes precisos.",bleed:true,momentum:true,loot:[["recycledBadge",1]],xp:52},
-  plagueMite:{name:"Ácaro de plaga",icon:"🦠",level:4,hp:20,atk:8,desc:"Pequeño, tóxico y pegajoso.",poison:true,summons:"acidLarva",loot:[["venomSac",1]],xp:33}
-});
-Object.assign(DB.items,{
-  goblinPass:{name:"Pase goblin arrugado",icon:"🎟️",type:"quest",desc:"Algunos goblins se calman al verlo.",stack:true},
-  wetBoots:{name:"Botas de pasillo húmedo",icon:"👢",type:"armor",slot:"legs",desc:"+1 CON, +1 armadura, -1 Despachurrar.",bonuses:{constitution:1,armor:1,squish:-1}},
-  deadGuardShorts:{name:"Pantalón de guardia muerto",icon:"🩳",type:"armor",slot:"pants",desc:"+1 armadura, +1 dignidad narrativa.",bonuses:{armor:1,charisma:1}},
-  rustyKnuckles:{name:"Puño americano oxidado",icon:"🥊",type:"weapon",slot:"fist",desc:"+3 daño de puño, menos retroceso.",bonuses:{punchDamage:3,recoilReduction:2},atk:4},
-  insulatingGloves:{name:"Guantes aislantes",icon:"🧤",type:"armor",slot:"hands",desc:"+2 armadura, resiste fuego/choque.",bonuses:{armor:2,fireResist:25}},
-  boneGreave:{name:"Espinillera de hueso",icon:"🦴",type:"armor",slot:"legs",desc:"+3 daño de patada.",bonuses:{kickDamage:3}},
-  momentumRing:{name:"Anillo de impulso",icon:"💍",type:"accessory",slot:"toe",desc:"+1 DEX, más chance de aturdir.",bonuses:{dexterity:1,stunChance:8}},
-  antisepticAmulet:{name:"Amuleto antiséptico",icon:"🧿",type:"accessory",slot:"neck",desc:"Resiste septicemia y veneno.",bonuses:{poisonResist:30}},
-  reflexPotion:{name:"Poción de reflejos",icon:"🧪",type:"consumable",desc:"+DEX temporal en combate.",use:"reflex",stack:true},
-  confusionScroll:{name:"Pergamino de Niebla de confusión",icon:"📜",type:"scroll",desc:"Aturde al objetivo con chance alta.",use:"confuse",stack:true},
-  refinedHemolymph:{name:"Frasco de hemolinfa refinada",icon:"🧫",type:"material",desc:"Material alquímico valioso.",stack:true},
-  chippedAxe:{name:"Hacha astillada",icon:"🪓",type:"weapon",slot:"weapon",desc:"+7 daño, pero tosca.",atk:7,bonuses:{critChance:4}},
-  paddedJacket:{name:"Chaqueta acolchada",icon:"🧥",type:"armor",slot:"innerTorso",desc:"+3 armadura, penaliza sigilo.",bonuses:{armor:3,stealthPenalty:8}},
-  charismaTrinket:{name:"Baratija de carisma",icon:"👑",type:"accessory",slot:"head",desc:"+1 CHA, atrae eventos raros.",bonuses:{charisma:1}},
-  plagueMask:{name:"Máscara de plaga",icon:"😷",type:"armor",slot:"head",desc:"Resiste veneno y sangrado.",bonuses:{poisonResist:20,bleedResist:20}},
-  pierceVest:{name:"Chaleco de placas viejas",icon:"🦺",type:"armor",slot:"innerTorso",desc:"Mitiga perforación.",bonuses:{armor:2,pierceResist:25}},
-  thornCape:{name:"Capa de espinas blandas",icon:"🌵",type:"armor",slot:"cloak",desc:"Devuelve algo de daño.",bonuses:{thorns:2}},
-  manaThreadCape:{name:"Capa de hilo de maná",icon:"🪄",type:"armor",slot:"cloak",desc:"+Daño mágico y regen de maná.",bonuses:{magicDamage:4,manaRegen:1}},
-  stompBoots:{name:"Botas de aplastar",icon:"🥾",type:"armor",slot:"legs",desc:"+4 daño de pisotón.",bonuses:{stompDamage:4}},
-  kickHarness:{name:"Arnés de patada",icon:"🎽",type:"armor",slot:"innerTorso",desc:"+2 daño de patada, +1 CON.",bonuses:{kickDamage:2,constitution:1}},
-  venomSac:{name:"Saco de veneno",icon:"🧪",type:"material",desc:"Ingrediente tóxico.",stack:true},
-  acidSlime:{name:"Baba ácida",icon:"🫧",type:"material",desc:"Disuelve casi todo.",stack:true},
-  wormTooth:{name:"Diente de gusano",icon:"🦷",type:"material",desc:"Filoso y desagradable.",stack:true},
-  nightWing:{name:"Ala de nictofúnebre",icon:"🪶",type:"material",desc:"Usada en capas de sigilo.",stack:true},
-  boneShard:{name:"Esquirla de hueso",icon:"🦴",type:"material",desc:"Material común para blindaje.",stack:true},
-  fairyDust:{name:"Polvo feérico rencoroso",icon:"✨",type:"material",desc:"Brilla y pica.",stack:true},
-  recycledBadge:{name:"Placa reciclada",icon:"🏷️",type:"rare",desc:"Prueba incómoda de la mazmorra.",stack:true},
-  brutalHarness:{name:"Arnés brutalista",icon:"🦾",type:"armor",slot:"innerTorso",build:"Brutal",desc:"+daño físico y pisotón, con rebote sucio.",bonuses:{armor:2,reflect:6,stompDamage:6,kickDamage:2}},
-  chaosBandolier:{name:"Bandolera caótica",icon:"🧨",type:"armor",slot:"cloak",build:"Caótico",desc:"Más explosivos y más caos: pegás más, sufrís más.",bonuses:{explosives:4,recoilReduction:-2,thorns:1}},
-  smartVisor:{name:"Visor táctico sobrio",icon:"🧠",type:"armor",slot:"head",build:"Inteligente",desc:"Control, resistencias y utilidad mágica.",bonuses:{intelligence:2,poisonResist:25,bleedResist:20,manaRegen:1,stunChance:6}}
-});
-Object.assign(DB.lootBoxes,{
-  bronzeBoots:{name:"Caja de botas de bronce",icon:"👢",rarity:1,drops:[["wetBoots",1],["stompBoots",1],["healingPotion",1]]},
-  silverApparel:{name:"Caja de indumentaria de plata",icon:"🧥",rarity:2,drops:[["paddedJacket",1],["plagueMask",1],["deadGuardShorts",1]]},
-  silverFists:{name:"Caja de puños de plata",icon:"🥊",rarity:2,drops:[["rustyKnuckles",1],["warGauntlets",1],["insulatingGloves",1]]},
-  bronzeAlchemy:{name:"Caja de alquimia de bronce",icon:"⚗️",rarity:1,drops:[["reflexPotion",2],["confusionScroll",1],["manaPotion",2]]},
-  plagueHunter:{name:"Caja de cazador de plagas",icon:"🪤",rarity:2,drops:[["antisepticAmulet",1],["plagueMask",1],["bandage",2]]},
-  minorFairy:{name:"Caja feérica menor",icon:"🧚",rarity:2,drops:[["fairyDust",2],["manaThreadCape",1],["manaPotion",2]]},
-  survivalPack:{name:"Caja de supervivencia",icon:"🎒",rarity:1,drops:[["healingPotion",2],["bandage",2],["torch",2],["ironSkin",1]]},
-  showtimeBox:{name:"Caja de espectáculo",icon:"🎬",rarity:3,drops:[["charismaTrinket",1],["momentumRing",1],["goldCrowd",1]]},
-  buildBrutal:{name:"Alijo estilo BRUTAL",icon:"🦾",rarity:2,drops:[["brutalHarness",1],["ironSkin",1],["bandage",2]]},
-  buildChaos:{name:"Alijo estilo CAÓTICO",icon:"🧨",rarity:2,drops:[["chaosBandolier",1],["dynamite",3],["reflexPotion",1]]},
-  buildSmart:{name:"Alijo estilo INTELIGENTE",icon:"🧠",rarity:2,drops:[["smartVisor",1],["confusionScroll",1],["manaPotion",2]]}
-});
-const defaultGame=()=>({floor:1,floorTimeHours:FLOOR_START_HOURS,premiereHours:23,crawlersRemaining:4148111,sideTab:"personaje",location:"safe_fastfood",mode:"explore",explored:["safe_fastfood"],revealed:["safe_fastfood","east_hall","west_hall","nest_door","tutorial_guild"],neighborhoodRevealed:false,bossDefeated:false,safeRoomFound:true,turn:0,log:[],notifications:[],combat:null,currentEvent:null,runStats:{bossesDefeated:0,deathsAvoided:0,win:false},progress:{exploredNodes:1,enemiesKilled:0,bossKilled:false,exitUnlocked:false,exitAnnounced:false},storyFlags:{janitorSeen:false},riskBonusXp:0,bossLootPenalty:false,partyName:"El séquito de la Princesa Dónut",player:{name:"Carl",icon:"🧍",level:5,xp:0,xpNext:220,crawlerId:4122,hp:120,baseHp:70,mana:3,baseMana:3,statPoints:12,stats:{strength:6,intelligence:3,constitution:5,dexterity:5,charisma:4},skills:{pugilism:5,unarmed:5,footSoldier:5,squish:5,regen:0,ironFist:3,powerStrike:0,explosives:1},equipment:{weapon:null,fist:null,hands:null,innerTorso:"trollShirt",cloak:"nightCloak",toe:"toeRing",legs:"riotKnees",pants:null,head:null,neck:null},statuses:[],audience:{views:0,followers:0,favorites:0,patrons:0,showScore:0,lastTag:null,repeat:0,combo:0},badges:["★ bronce"],temp:{ironSkin:false}},donut:{name:"Princesa Dónut",icon:"🐱",level:5,xp:0,xpNext:200,hp:45,baseHp:28,mana:18,baseMana:18,stats:{strength:15,intelligence:18,constitution:2,dexterity:8,charisma:25},skills:{magicMissile:3,lightFeet:7,slicing:4,rearClaw:4,firstImpression:5},equipment:{neck:"butterfly",head:"septicCrown"},statuses:[],potionCooldown:0},inventory:{healingPotion:10,manaPotion:28,torch:21,bandage:4,ironSkin:5,dynamite:6,frogClub:1,poker:1,scattererShell:3,hemolymph:4,ratFur:5,rawSteak:1,bronzeAdventurer:0,silverAdventurer:0,bronzeWeapon:0,silverGoblin:0,goldCrowd:0,bronzeBoss:0,dignityBox:0,mapNeighborhood:1,warGauntlets:0,pants:0,brassKnuckles:0,goblinPass:0,buildBrutal:1,buildChaos:1,buildSmart:1},quests:[{id:"descend",text:"Encontrar la escalera al piso 2 cuando abra.",done:false},{id:"premiere",text:"Hacer algo espectacular antes del estreno.",done:false},{id:"pants",text:"Conseguir pantalones para no salir en cámara como un desastre.",done:false},{id:"gauntlets",text:"Conseguir protección para puños.",done:false},{id:"nest",text:"Farmear el nido cercano sin morir estúpidamente.",done:false}]});
-let game=defaultGame();
-let deathRestartBonus=0;
-function normalizeGameState(raw){
-  const base=defaultGame();
-  const merged={...base,...(raw||{})};
-  merged.player={...base.player,...(raw?.player||{})};
-  merged.player.stats={...base.player.stats,...(raw?.player?.stats||{})};
-  merged.player.skills={...base.player.skills,...(raw?.player?.skills||{})};
-  merged.player.equipment={...base.player.equipment,...(raw?.player?.equipment||{})};
-  merged.player.statuses=Array.isArray(raw?.player?.statuses)?raw.player.statuses:[];
-  merged.player.temp={...base.player.temp,...(raw?.player?.temp||{})};
-  merged.player.audience={...base.player.audience,...(raw?.player?.audience||{})};
-  merged.player.badges=Array.isArray(raw?.player?.badges)?raw.player.badges:[...base.player.badges];
-  merged.donut={...base.donut,...(raw?.donut||{})};
-  merged.donut.stats={...base.donut.stats,...(raw?.donut?.stats||{})};
-  merged.donut.skills={...base.donut.skills,...(raw?.donut?.skills||{})};
-  merged.donut.equipment={...base.donut.equipment,...(raw?.donut?.equipment||{})};
-  merged.donut.statuses=Array.isArray(raw?.donut?.statuses)?raw.donut.statuses:[];
-  merged.inventory={...base.inventory,...(raw?.inventory||{})};
-  merged.quests=Array.isArray(raw?.quests)?raw.quests:[...base.quests];
-  merged.explored=Array.isArray(raw?.explored)?raw.explored:[...base.explored];
-  merged.revealed=Array.isArray(raw?.revealed)?raw.revealed:[...base.revealed];
-  merged.log=Array.isArray(raw?.log)?raw.log:[];
-  merged.notifications=Array.isArray(raw?.notifications)?raw.notifications:[];
-  merged.currentEvent=null;
-  merged.runStats={...base.runStats,...(raw?.runStats||{})};
-  merged.progress={...base.progress,...(raw?.progress||{})};
-  merged.storyFlags={...base.storyFlags,...(raw?.storyFlags||{})};
-  merged.riskBonusXp=typeof raw?.riskBonusXp==='number'?raw.riskBonusXp:base.riskBonusXp;
-  merged.bossLootPenalty=typeof raw?.bossLootPenalty==='boolean'?raw.bossLootPenalty:base.bossLootPenalty;
-  if(!locations[merged.location]) merged.location=base.location;
-  if(!['explore','combat','victory','death'].includes(merged.mode)) merged.mode='explore';
-  return merged;
-}
-const locations={safe_fastfood:{name:"Estancia segura — Restaurante azul",icon:"🍔",type:"safe",pos:[3,3],desc:"Un restaurante de comida rápida reconstruido bajo tierra. Hay habitaciones, duchas, comida, máquinas de bebida y un cuidador bopca llamado Tally.\n\nPantallas sobre el mostrador muestran el tiempo restante, el estreno y los mazmorreros vivos.",exits:{este:"east_hall",oeste:"west_hall",gremio:"tutorial_guild"},actions:["sleep","eat","shower","openBoxes","talkTally"]},tutorial_guild:{name:"Gremio de tutorial",icon:"🐀",type:"safe",pos:[2,3],desc:"Una sede pequeña, con chimenea, estanterías y un maestro gremial rata medio borracho pero útil: Mordecai.",exits:{volver:"safe_fastfood"},actions:["askMordecai","openBoxes"]},east_hall:{name:"Pasillo este",icon:"🕯️",type:"hall",pos:[4,3],desc:"Un pasillo húmedo, iluminado por liquen verde. Hay olor a bicho quemado y algo parecido a basura vieja.",exits:{oeste:"safe_fastfood",este:"nest_door",norte:"side_tunnels"},encounter:["scatterer","scatterer","guardian"]},west_hall:{name:"Pasillo oeste",icon:"🧱",type:"hall",pos:[2,4],desc:"Un corredor más ancho. Se oyen golpes lejanos y, cada tanto, algo que suena a una persona gritando.",exits:{este:"safe_fastfood",oeste:"llama_corner",sur:"echo_gallery"},encounter:["rat","rat","rat"]},side_tunnels:{name:"Túneles laterales",icon:"🌀",type:"hall",pos:[4,2],desc:"Un laberinto de cruces estrechos. El minimapa evita que te pierdas, pero no que te metan los dientes.",exits:{sur:"east_hall",este:"corpse_rebecca",norte:"service_bathroom"},encounter:["rat","scatterer","guardian"]},service_bathroom:{name:"Baño de servicio clausurado",icon:"🚽",type:"room",pos:[4,1],desc:"Azulejos rotos, olor a lejía vieja y una puerta sin manija. Nada dice “aventura” como un baño embrujado.",exits:{sur:"side_tunnels",este:"storage_cubby"}},storage_cubby:{name:"Depósito mínimo",icon:"🧰",type:"room",pos:[5,1],desc:"Un cuartito con estantes doblados. Hay cajas, mugre y promesas de botín mediocre.",exits:{oeste:"service_bathroom",sur:"corpse_rebecca"},encounter:["scatterer"]},echo_gallery:{name:"Galería de eco",icon:"📣",type:"hall",pos:[2,5],desc:"Todo suena dos veces, incluida tu mala idea de seguir avanzando.",exits:{norte:"west_hall",este:"fuse_room"},encounter:["rat","guardian"]},fuse_room:{name:"Sala de fusibles",icon:"⚡",type:"room",pos:[3,5],desc:"Tableros eléctricos viejos, cables pelados y la certeza de que acá todo explota mal.",exits:{oeste:"echo_gallery"},encounter:["scatterer","guardian"]},llama_corner:{name:"Cruce chamuscado",icon:"🔥",type:"hall",pos:[1,4],desc:"El suelo tiene manchas carmesí de lava ya fría. Huele a azufre. Algo grande podría volver a pasar por acá.",exits:{este:"west_hall"},encounter:["evilLlama"]},corpse_rebecca:{name:"Cadáver de mazmorrera",icon:"✖",type:"corpse",pos:[5,2],desc:"Una X grande titilaba en el mapa. El cadáver de Rebecca W., nivel 3, yace cerca del pasillo principal.",exits:{oeste:"side_tunnels",norte:"storage_cubby"},actions:["lootRebeccaFast","lootRebeccaCareful"]},nest_door:{name:"Puerta vieja con letrero alemán",icon:"🚪",type:"door",pos:[5,3],desc:"Un papel viejo dice: “Betreten verboten”. La puerta está mal cerrada. Del otro lado llega olor a basura, pañales y derrota humana.",exits:{oeste:"east_hall"},actions:["peekNest","throwDynamite","enterBoss"]},stairs_to_floor2:{name:"Escalera sellada al piso 2",icon:"🪜",type:"exit",pos:[6,4],desc:"Una escalera metálica vibra con luz azul. Al fin: salida del piso 1 y acceso simulado al piso 2.",exits:{norte:"nest_door"},actions:["descendFloor"]},boss_room:{name:"Guarida de La Acaparadora",icon:"☠️",type:"boss",pos:[6,3],desc:"Una sala circular llena de montañas de basura. Si entrás, la puerta se cierra, suena música horrenda y empieza el show.",exits:{oeste:"nest_door"}}};
-const POSITION_TO_LOC=Object.fromEntries(Object.entries(locations).map(([id,loc])=>[`${loc.pos[0]},${loc.pos[1]}`,id]));
-function getItem(id){return DB.items[id]||DB.lootBoxes[id]||{name:id,icon:"❓",desc:""}} function log(msg,type=""){game.log.unshift({msg,type,t:Date.now()});game.log=game.log.slice(0,80)} function notify(msg,type=""){game.notifications.unshift({msg,type,read:false});log(msg,type)} function addItem(id,qty=1){game.inventory[id]=(game.inventory[id]||0)+qty} function removeItem(id,qty=1){if((game.inventory[id]||0)<qty)return false;game.inventory[id]-=qty;if(game.inventory[id]<0)game.inventory[id]=0;return true}
-function totalStats(who){return Object.values(calcStats(who)).reduce((a,b)=>a+b,0)} function calcStats(who){const actor=who==="donut"?game.donut:game.player;const out={...actor.stats};const eq=actor.equipment||{};for(const slot in eq){const id=eq[slot];const item=DB.items[id];if(item&&item.bonuses){for(const k in item.bonuses){if(["strength","intelligence","constitution","dexterity","charisma"].includes(k))out[k]=(out[k]||0)+item.bonuses[k]}}}return out} function calcSkill(who,skill){const actor=who==="donut"?game.donut:game.player;let val=actor.skills[skill]||0;const eq=actor.equipment||{};for(const slot in eq){const item=DB.items[eq[slot]];if(item&&item.bonuses&&item.bonuses[skill])val+=item.bonuses[skill]}return val} function calcBonus(who,key){const actor=who==="donut"?game.donut:game.player;const eq=actor.equipment||{};let out=0;for(const slot in eq){const it=DB.items[eq[slot]];if(it&&it.bonuses&&typeof it.bonuses[key]!=="undefined")out+=it.bonuses[key]}return out} function maxHp(who){const s=calcStats(who);return (who==="donut"?game.donut.baseHp:game.player.baseHp)+s.constitution*10} function maxMana(who){return calcStats(who).intelligence} function syncCaps(){game.player.hp=clamp(game.player.hp,0,maxHp("player"));game.player.mana=clamp(game.player.mana,0,maxMana("player"));game.donut.hp=clamp(game.donut.hp,0,maxHp("donut"));game.donut.mana=clamp(game.donut.mana,0,maxMana("donut"))} function advanceTime(hours){game.floorTimeHours=Math.max(0,game.floorTimeHours-hours);game.premiereHours=Math.max(0,game.premiereHours-hours);game.crawlersRemaining=Math.max(100000,Math.floor(game.crawlersRemaining-hours*rnd(5000,16000)));game.turn++; if(game.floorTimeHours<=0){showDeathSummary('El piso se derrumbó sobre vos. Excelente timing.');}}
-function formatHours(h){const d=Math.floor(h/24),hr=Math.floor(h%24);return d>0?`${d}d ${hr}h`:`${hr}h`}
-function isLoopExplorableNode(id){return !!locations[id]&&id!=='stairs_to_floor2'&&id!=='boss_room'}
-function isStairsVisible(){return !!game.progress?.exitUnlocked}
-function updateLoopProgress(){const p=game.progress||{};p.exploredNodes=game.explored.filter(isLoopExplorableNode).length;p.bossKilled=!!game.bossDefeated||!!p.bossKilled;const ready=p.exploredNodes>=LOOP_TARGETS.exploreNodes&&p.enemiesKilled>=LOOP_TARGETS.killEnemies&&p.bossKilled;if(ready&&!p.exitUnlocked){p.exitUnlocked=true;if(!game.revealed.includes('stairs_to_floor2'))game.revealed.push('stairs_to_floor2')}if(p.exitUnlocked&&!p.exitAnnounced){p.exitAnnounced=true;notify('La escalera al piso 2 quedó desbloqueada.','gold')}}
-function objectiveHint(){if(game.mode==='victory')return "Encontrar la salida";if(game.progress.exploredNodes<LOOP_TARGETS.exploreNodes)return "Explorar el área";if(!game.progress.bossKilled)return "Derrotar al jefe de barrio";if(!game.progress.exitUnlocked)return "Encontrar la salida";return "Subir por la escalera al piso 2"}
-function objectiveProgressText(){const p=game.progress;const boss=p.bossKilled?"✅":"⬜";const stairs=p.exitUnlocked?"✅":"⬜";return `Explorar ${Math.min(p.exploredNodes,LOOP_TARGETS.exploreNodes)}/${LOOP_TARGETS.exploreNodes} · Eliminar ${Math.min(p.enemiesKilled,LOOP_TARGETS.killEnemies)}/${LOOP_TARGETS.killEnemies} · Jefe ${boss} · Salida ${stairs}`}
-function trackShow(tag,base=1,msg=""){const a=game.player.audience||{};if(a.lastTag===tag)a.repeat=(a.repeat||0)+1;else{a.lastTag=tag;a.repeat=0}let points=base-(a.repeat>=2?1:0);if(points<0)points=0;a.showScore=(a.showScore||0)+points;a.views=(a.views||0)+rnd(points*10,points*28+6);if(msg&&points>0)notify(`📺 ${msg} (+${points} showScore)`,'magic');while((a.showScore||0)>=20){a.showScore-=20;const followers=rnd(5,12),favorites=rnd(2,6);a.followers=(a.followers||0)+followers;a.favorites=(a.favorites||0)+favorites;a.views+=rnd(80,180);notify(`📈 La audiencia sube: +${followers} seguidores, +${favorites} favoritos.`,'good');if((a.favorites||0)>=40&&Math.random()<.25){a.patrons=(a.patrons||0)+1;const gifts=['bronzeAdventurer','silverAdventurer','bronzeWeapon'];const gift=gifts[rnd(0,gifts.length-1)];addItem(gift,1);notify(`💌 Un mecenas envía ${getItem(gift).icon} ${getItem(gift).name}.`,'gold')}}}
-function trackCombatCombo(action){const a=game.player.audience;if(['punch','kick','stomp','dynamite'].includes(action)){a.combo=(a.combo||0)+1;if(a.combo>0&&a.combo%3===0)trackShow('combo',6,'¡Combo encadenado! Dónut aplaude con desprecio.')}else a.combo=0}
-function render(){syncCaps();updateLoopProgress();renderHUD();renderMap();renderScene();renderSide();document.getElementById("footerStatus").textContent=`Ubicación: ${locations[game.location].name} · Nivel Carl ${game.player.level} · Nivel Dónut ${game.donut.level}`}
-function renderHUD(){const p=game.player,d=game.donut,a=game.player.audience;document.getElementById("hud").innerHTML=`<div class="pill">🧍 <strong>Carl Nv.${p.level}</strong> HP ${p.hp}/${maxHp("player")} · MP ${p.mana}/${maxMana("player")}</div><div class="pill">🐱 <strong>Dónut Nv.${d.level}</strong> HP ${d.hp}/${maxHp("donut")} · MP ${d.mana}/${maxMana("donut")}</div><div class="pill timer">⏳ Derrumbe: <strong>${formatHours(game.floorTimeHours)}</strong></div><div class="pill">🎯 <strong>Objetivo actual:</strong> ${objectiveHint()}</div><div class="pill">📌 ${objectiveProgressText()}</div><div class="pill">📺 Estreno: <strong>${formatHours(game.premiereHours)}</strong></div><div class="pill">👥 Vivos: <strong>${game.crawlersRemaining.toLocaleString("es-AR")}</strong></div><div class="pill">📣 Show ${a.showScore||0} · 👁 ${a.views||0}</div><div class="pill">🫂 Seg ${a.followers||0} · ⭐ Fav ${a.favorites||0} · 💰 Mec ${a.patrons||0}</div><div class="pill">📁 ${game.notifications.filter(n=>!n.read).length} notif.</div>`}
-function renderMap(){const grid=document.getElementById("mapGrid");grid.innerHTML="";for(let y=0;y<7;y++){for(let x=0;x<7;x++){const locId=POSITION_TO_LOC[`${x},${y}`];const div=document.createElement("div");div.className="cell";if(locId==='stairs_to_floor2'&&!isStairsVisible()){div.textContent="·";grid.appendChild(div);continue}if(locId&&(game.revealed.includes(locId)||game.explored.includes(locId)||game.neighborhoodRevealed)){const loc=locations[locId];div.classList.add("known");if(loc.type==="safe")div.classList.add("safe");if(loc.type==="boss"||locId==="nest_door")div.classList.add("boss");if(loc.encounter)div.classList.add("enemy");if(loc.type==="corpse")div.classList.add("corpse");div.textContent=locId===game.location?"🟦":loc.icon;div.title=loc.name;div.onclick=()=>{if(game.explored.includes(locId)||game.neighborhoodRevealed)moveTo(locId)}}else div.textContent="·";if(locId===game.location)div.classList.add("current");grid.appendChild(div)}}}
-function renderScene(){const loc=locations[game.location];document.getElementById("sceneTitle").textContent=loc.name;document.getElementById("sceneSubtitle").textContent=loc.type==="safe"?"Estancia segura · el timer sigue corriendo":loc.type==="boss"?"Arena de jefe":loc.type==="exit"?"Salida del piso 1":"Mazmorra · exploración";document.getElementById("sceneIcon").textContent=loc.icon;let extra="";if(loc.encounter||encounterPools[game.location])extra="\n\nHay señales de enemigos por la zona. Podés buscar combate o moverte con cuidado.";if(game.location==="nest_door"&&!game.bossDefeated)extra+="\n\nDónut eriza el lomo. Adentro hay demasiadas cosas moviéndose.";if(game.location==="nest_door"&&game.bossDefeated&&!game.neighborhoodRevealed)extra+="\n\nAhora falta usar el mapa de barrio para rastrear la escalera.";document.getElementById("sceneDescription").textContent=loc.desc+extra;const a=document.getElementById("actions");a.innerHTML="";Object.entries(loc.exits||{}).forEach(([label,id])=>{if(id==='stairs_to_floor2'&&!isStairsVisible())return;addAction(`Ir: ${label} ➜`,()=>moveTo(id))});(loc.actions||[]).forEach(ac=>{const map={sleep:["😴 Dormir 8h",sleep],eat:["🍛 Comer",eat],shower:["🚿 Ducharse",shower],openBoxes:["🎁 Abrir cajas",openBoxes],talkTally:["🧌 Hablar con Tally",talkTally],askMordecai:["🐀 Consultar a Mordecai",askMordecai],lootRebeccaFast:["⚡ Saquear rápido",lootRebeccaFast],lootRebeccaCareful:["🧤 Saquear con cuidado",lootRebeccaCareful],peekNest:["👁️ Espiar sala",peekNest],throwDynamite:["💣 Tirar dinamita",throwDynamite],enterBoss:["☠️ Entrar igual",startBoss],descendFloor:["🪜 Bajar al piso 2",descendFloor]}; if(map[ac])addAction(map[ac][0],map[ac][1])}); if(game.location==="nest_door"&&isStairsVisible())addAction("🧭 Ir a la escalera al piso 2",searchStairs); if(loc.encounter||encounterPools[game.location]){addAction("⚔️ Buscar combate",()=>startCombat(generateEncounterForLocation(game.location)));addAction("☠️ Entrar a zona peligrosa (+XP / +enemigos)",enterDangerZone)} if(game.inventory.mapNeighborhood>0&&!game.neighborhoodRevealed)addAction("🗺️ Usar mapa de barrio",useNeighborhoodMap); addAction("📁 Notificaciones",()=>openModal('notifications'))}
-function addAction(label,fn,disabled=false){const b=document.createElement("button");b.textContent=label;b.onclick=fn;b.disabled=disabled;document.getElementById("actions").appendChild(b)}
-const encounterPools={east_hall:{base:["scatterer","rat","ductSpider","pipeSnake","acidLarva"],rare:["bitterFae"],min:2,max:4},west_hall:{base:["rat","trashWorm","mutantRaccoon","stragglerGoblin"],rare:["recycledHuman"],min:2,max:4},side_tunnels:{base:["rat","scatterer","guardian","ductSpider","plagueMite"],rare:["recycledSkeleton"],min:3,max:5},echo_gallery:{base:["guardian","youngNightbat","bitterFae","trashWorm"],rare:["recycledHuman"],min:2,max:4},fuse_room:{base:["acidLarva","plagueMite","recycledSkeleton"],rare:["bitterFae"],min:2,max:4},storage_cubby:{base:["mutantRaccoon","ductSpider","scatterer"],rare:["stragglerGoblin"],min:2,max:3},llama_corner:{base:["evilLlama","youngNightbat"],rare:["bitterFae"],min:1,max:2}};
-function generateEncounterForLocation(locId){const pool=encounterPools[locId];if(!pool)return locations[locId].encounter||["rat"];const count=rnd(pool.min,pool.max),list=[];for(let i=0;i<count;i++)list.push(pool.base[rnd(0,pool.base.length-1)]);if(pool.rare&&Math.random()<.12)list.push(pool.rare[rnd(0,pool.rare.length-1)]);return list}
-const randomEvents={
-  trap:{title:"🪤 Trampa improvisada",text:"Pisás una baldosa floja y algo metálico hace *clac*. Excelente momento para arrepentirte de todo.",choices:[{label:"Saltar hacia atrás",result:{damage:[8,16],status:"bleed",log:"Saltás tarde. Te raspás y quedás sangrando como amateur."}},{label:"Desarmarla con estilo",result:{xp:12,loot:[["bandage",1]],log:"La desarmás de milagro. Te sentís ingeniero hasta nuevo aviso."}},{label:"Patearla fuerte (mala idea)",result:{damage:[15,28],combat:["rat","scatterer"],log:"La pateás y activás algo peor. Felicidades."}}]},
-  corpse:{title:"✖ Cadáver reciente",text:"Encontrás un cuerpo fresco con mochila medio abierta. Dónut ya decidió moralmente por vos.",choices:[{label:"Saquear rápido",result:{loot:[["healingPotion",1],["ratFur",1]],xp:8,log:"Botín de emergencia conseguido. La culpa también."}},{label:"Revisar con cuidado",result:{loot:[["torch",1]],reveal:["storage_cubby","fuse_room"],log:"Entre papeles mojados encontrás marcas de mapa útiles."}},{label:"Dejarlo en paz",result:{xp:4,log:"No saquear también suma puntos... emocionales, no de stats."}}]},
-  bath:{title:"🚽 Baño sospechosamente funcional",text:"Hay un baño mugriento, pero el agua todavía corre. La pregunta no es si, sino cuánto te arrepentís.",choices:[{label:"Lavarte y seguir",result:{statusRemove:"bleed",xp:6,log:"Te limpiás como podés. Menos sangre, misma dignidad cuestionable."}},{label:"Revolver botiquín",result:{loot:[["bandage",2],["manaPotion",1]],log:"Encontrás insumos médicos y un olor que no se va nunca."}},{label:"Ignorarlo",result:{log:"Decidís que el aroma a muerte es parte de tu build."}}]},
-  minorBox:{title:"📦 Caja menor",text:"Una cajita chiquita escondida detrás de escombros. Podría ser tesoro o decepción comprimida.",choices:[{label:"Abrir con cuidado",result:{loot:[["bronzeAdventurer",1]],log:"Caja rescatada. Tu codicia fue recompensada por una vez."}},{label:"Romperla",result:{loot:[["healingPotion",1]],damage:[3,8],log:"La rompés. Sale loot... y astillas en la mano."}}]},
-  rare:{title:"🌀 Encuentro raro",text:"Escuchás un canto gutural y pasos raros. Esto tiene olor a contenido premium de riesgo.",choices:[{label:"Investigar",result:{combat:["guardian","scatterer"],xp:10,log:"Te metés de cabeza en el problema. Tradición respetada."}},{label:"Tender emboscada",result:{combat:["guardian"],loot:[["dynamite",1]],log:"Los sorprendés. Ellos también te sorprenden a vos."}},{label:"Retirarte en silencio",result:{reveal:["echo_gallery"],log:"Retrocedés sin ruido y descubrís un pasillo alternativo."}}]},
-  noise:{title:"📣 Ruido lejano",text:"Algo golpea en la distancia. Suena como pelea, o como una cafetera demoníaca.",choices:[{label:"Seguir el ruido",result:{reveal:["echo_gallery","fuse_room"],xp:7,log:"Seguís el eco y encontrás rutas nuevas. El peligro, bonus incluido."}},{label:"Preparar guardia",result:{loot:[["ironSkin",1]],log:"Te atrincherás y encontrás una poción en una caja oxidada. El universo confundido te premia."}},{label:"Ignorarlo",result:{log:"Ignorás el ruido. Por ahora nada explota cerca de tu cara."}}]},
-  janitor:{title:"🧍 Conserje del turno eterno",text:"En un pasillo húmedo, un humano vivo levanta una linterna rota.\n\n—\"No dispares. Soy Darío, ex-conserje.\"\n—\"La cosa del ducto me dejó esto y se llevó a mi hija. Si querés subir, no seas héroe... o sé uno mejor que yo.\"\n\nDónut susurra: \"Genial, trauma premium en vivo.\"",choices:[{label:"Darle agua y escuchar",result:{xp:14,loot:[["mapNeighborhood",1],["bandage",1]],permanent:{stat:"charisma",value:1,label:"Contacto humano inesperado"},setFlag:"janitorSeen",log:"Darío te da un mapa manchado y una llave rota. Ganás +1 Carisma permanente por no actuar como basura total."}},{label:"Apretarlo por botín",result:{damage:[10,20],loot:[["healingPotion",1]],combat:["recycledHuman","mutantRaccoon"],setFlag:"janitorSeen",log:"Le robás la mochila. Una alarma casera suena y te caen dos horrores con hambre."}},{label:"Ofrecer cazar a la criatura",result:{combat:["guardian"],xp:10,loot:[["ironSkin",1]],setFlag:"janitorSeen",log:"Aceptás el trato absurdo. Darío te marca un ducto y te tira una poción: \"Si morís, morí lejos de mi balde.\""}}]}
-};
-function pickLocationEvent(loc){if(loc.type==='safe'||loc.type==='boss'||loc.type==='door')return null;if(!game.storyFlags.janitorSeen&&Math.random()<.16&&loc.type!=='corpse')return 'janitor';const pool=['trap','corpse','bath','minorBox','rare','noise'];if(loc.id==='service_bathroom')return 'bath';if(loc.type==='corpse')return 'corpse';return pool[rnd(0,pool.length-1)]}
-function showCurrentEvent(){const ev=game.currentEvent;if(!ev)return;document.getElementById('modal').classList.add('show');document.getElementById('modalTitle').textContent=ev.title;document.getElementById('modalBody').innerHTML=`<p>${ev.text}</p><div class="actions" style="padding:0;border:0;background:none">${ev.choices.map((c,i)=>`<button onclick="resolveEventChoice(${i})">${c.label}</button>`).join('')}</div>`}
-function maybeTriggerLocationEvent(locId){if(game.mode!=='explore')return false;const loc={...locations[locId],id:locId};if(!loc||Math.random()>.28)return false;const eventId=pickLocationEvent(loc);if(!eventId||!randomEvents[eventId])return false;game.currentEvent=deepClone(randomEvents[eventId]);showCurrentEvent();return true}
-function resolveEventChoice(idx){const ev=game.currentEvent;if(!ev||!ev.choices[idx])return;const res=ev.choices[idx].result||{};if(res.damage){const dmg=rnd(res.damage[0],res.damage[1]);game.player.hp=clamp(game.player.hp-dmg,0,maxHp('player'));notify(`Evento: recibís ${dmg} de daño.`,dmg>14?'bad':'warn')}if(res.loot)(res.loot||[]).forEach(([id,q])=>{addItem(id,q);notify(`Evento loot: ${getItem(id).icon} ${getItem(id).name} x${q}`,'good')});if(res.xp){const g=gainXP(res.xp);notify(`Evento XP: Carl +${g.playerXp} / Dónut +${g.donutXp}.`,'magic')}if(res.status&&addStatus(game.player,res.status))notify(`Estado aplicado: ${statusLabel(res.status)}.`,'bad');if(res.statusRemove){game.player.statuses=game.player.statuses.filter(s=>s!==res.statusRemove);notify(`Estado removido: ${statusLabel(res.statusRemove)}.`,'good')}if(res.permanent&&res.permanent.stat){game.player.stats[res.permanent.stat]=(game.player.stats[res.permanent.stat]||0)+res.permanent.value;notify(`Bonus permanente: ${res.permanent.label||res.permanent.stat} +${res.permanent.value}.`,'gold')}if(res.setFlag)game.storyFlags[res.setFlag]=true;if(res.reveal)(res.reveal||[]).forEach(id=>{if(locations[id]&&!game.revealed.includes(id))game.revealed.push(id)});if(res.log)notify(res.log,res.damage?'warn':'magic');game.currentEvent=null;closeModal();render();if(res.combat)startCombat(res.combat)}
-function moveTo(id){if(game.mode!=="explore")return; if(!locations[id])return; if(id==='stairs_to_floor2'&&!isStairsVisible()){notify('La escalera todavía no está desbloqueada.','warn');return} game.location=id; if(!game.explored.includes(id))game.explored.push(id); if(!game.revealed.includes(id))game.revealed.push(id); advanceTime(.15); if(maybeTriggerLocationEvent(id))return; if(locations[id].type!=="safe"&&Math.random()<.18&&(locations[id].encounter||encounterPools[id]))startCombat(generateEncounterForLocation(id)); else render()}
-function setSideTab(tab){game.sideTab=tab;renderSide()}
-function renderSide(){document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));const bt=document.getElementById('tab-'+game.sideTab);if(bt)bt.classList.add('active');const panel=document.getElementById("sidePanel");if(game.sideTab==="personaje")panel.innerHTML=renderCharacters()+renderQuests();if(game.sideTab==="inv")panel.innerHTML=renderInventory();if(game.sideTab==="skills")panel.innerHTML=renderSkills();if(game.sideTab==="log")panel.innerHTML=`<div class="log">${game.log.map(e=>`<div class="log-entry ${e.type}">${e.msg}</div>`).join("")}</div>`}
-function hpBar(cur,max,type=""){return `<div class="bar ${type}"><span style="width:${pct(cur,max)}%"></span></div>`}
-function renderCharacters(){const pS=calcStats("player"),dS=calcStats("donut");return `<div class="char-card"><div class="char-top"><b>🧍 Carl #${game.player.crawlerId}</b><span class="badge">${game.player.badges.join(' ')}</span></div>${hpBar(game.player.hp,maxHp("player"))}<div class="small muted">HP ${game.player.hp}/${maxHp("player")} · MP ${game.player.mana}/${maxMana("player")}</div>${Object.entries(pS).map(([k,v])=>`<div class="statline"><span>${statName(k)}</span><b>${v}</b></div>`).join("")}<div class="small muted">Puntos bloqueados hasta piso 3: ${game.player.statPoints}</div></div><div class="char-card"><div class="char-top"><b>🐱 Princesa Dónut</b><span class="badge">Líder</span></div>${hpBar(game.donut.hp,maxHp("donut"),'mana')}<div class="small muted">HP ${game.donut.hp}/${maxHp("donut")} · MP ${game.donut.mana}/${maxMana("donut")}</div>${Object.entries(dS).map(([k,v])=>`<div class="statline"><span>${statName(k)}</span><b>${v}</b></div>`).join("")}</div>`}
-function statName(k){return {strength:"Fuerza",intelligence:"Inteligencia",constitution:"Constitución",dexterity:"Destreza",charisma:"Carisma"}[k]||k}
-function renderQuests(){return `<h3>🎯 Objetivos</h3>${game.quests.map(q=>`<div class="questline"><span>${q.done?'✅':'⬜'} ${q.text}</span></div>`).join("")}`}
-function itemBonusText(item){if(!item||!item.bonuses)return 'Sin bonus';const keys={strength:'FUE',intelligence:'INT',constitution:'CON',dexterity:'DES',charisma:'CAR',regen:'Regeneración',ironFistGear:'Puño de hierro',powerStrike:'Golpe poderoso',lightFeet:'Pies ligeros',firstImpression:'Buena impresión',reflect:'Reflejo daño %',armor:'Armadura',kickDamage:'Daño patada',stompDamage:'Daño pisotón',explosives:'Explosivos',poisonResist:'Resist veneno %',bleedResist:'Resist hemorragia %',manaRegen:'Regen maná',stunChance:'Aturdir %',punchDamage:'Daño puño',thorns:'Espinas',recoilReduction:'Retroceso',pierceResist:'Resist perforación %'};return Object.entries(item.bonuses).map(([k,v])=>`${keys[k]||k} ${v>=0?'+':''}${v}`).join(' · ')}
-function itemCategory(id){if(DB.lootBoxes[id])return 'Cajas';const it=DB.items[id];if(!it)return 'Otros';if(it.type==='consumable'||it.type==='food'||it.type==='explosive'||it.type==='utility'||it.type==='scroll')return 'Consumibles';if(it.slot)return 'Equipo';if(it.type==='material')return 'Materiales';if(it.type==='quest')return 'Quest';return 'Otros'}
-function showItemDetail(id){const it=getItem(id);const item=DB.items[id];openModal('help');document.getElementById('modalTitle').textContent=`${it.icon||'📦'} ${it.name}`;document.getElementById('modalBody').innerHTML=`<div class="small muted">${it.desc||'Sin descripción.'}</div>${item?`<div style="margin-top:10px"><b>Tipo:</b> ${item.type||'—'}${item.slot?` · <b>Slot:</b> ${item.slot}`:''}${item.build?` · <b>Estilo:</b> ${item.build}`:''}</div><div style="margin-top:6px"><b>Bonus:</b> ${itemBonusText(item)}</div>`:''}`}
-function renderInventory(){let html=`<h3>🧍 Equipo de Carl</h3><div class="equipment-grid">`;const slots={weapon:"Arma",fist:"Puño",hands:"Manos",innerTorso:"Torso",cloak:"Capa",head:"Cabeza",neck:"Cuello",toe:"Anillo",legs:"Piernas",pants:"Pantalones"};for(const [slot,label] of Object.entries(slots)){const id=game.player.equipment[slot],it=DB.items[id];html+=`<div class="slot"><b>${label}</b>${id?`${getItem(id).icon} ${getItem(id).name}<div class="small muted">${itemBonusText(it)}</div><button onclick="unequipItem('${slot}')">Desequipar</button>`:'— vacío —'}</div>`}html+=`</div><h3>🎒 Inventario</h3>`;const grouped={Consumibles:[],Equipo:[],Materiales:[],Cajas:[],Quest:[],Otros:[]};Object.entries(game.inventory).filter(([id,q])=>q>0).forEach(([id,q])=>grouped[itemCategory(id)].push([id,q]));Object.entries(grouped).forEach(([cat,rows])=>{if(!rows.length)return;html+=`<h3>${cat}</h3>`;rows.forEach(([id,q])=>{const it=getItem(id);const item=DB.items[id];const equippable=item&&item.slot;const usable=item&&item.use;const box=DB.lootBoxes[id];const build=item&&item.build?` · Estilo: ${item.build}`:'';html+=`<div class="itemline"><span title="${it.desc||''}">${it.icon||'📦'} ${it.name} <span class="muted">x${q}</span><div class="small muted">${item?itemBonusText(item):''}${build}</div></span><span>${equippable?`<button onclick="equipItem('${id}')">Equipar</button>`:''}${usable?`<button onclick="useItem('${id}')">Usar</button>`:''}${box?`<button onclick="openOneBox('${id}')">Abrir</button>`:''}<button onclick="showItemDetail('${id}')">Detalle</button></span></div>`})});return html}
-function renderSkills(){const names={pugilism:"Pugilismo",unarmed:"Combate sin armas",footSoldier:"Soldado de a pie",squish:"Despachurrar",regen:"Regeneración",ironFist:"Puño de hierro",powerStrike:"Golpe poderoso",explosives:"Explosivos",magicMissile:"Proyectil mágico",lightFeet:"Pies ligeros",slicing:"Ataque rebanador",rearClaw:"Garra trasera",firstImpression:"Buena primera impresión"};let html="<h3>📚 Carl</h3>";Object.entries(game.player.skills).forEach(([k,v])=>html+=`<div class="skillline"><span>${names[k]||k}</span><b>${calcSkill('player',k)}</b></div>`);html+="<h3>🐱 Dónut</h3>";Object.entries(game.donut.skills).forEach(([k,v])=>html+=`<div class="skillline"><span>${names[k]||k}</span><b>${calcSkill('donut',k)}</b></div>`);return html}
-function equipItem(id){const it=DB.items[id];if(!it||!it.slot)return; if(!(it.slot in game.player.equipment)){notify(`No podés equipar ${it.name} en Carl (slot inválido).`,'warn');return} if((game.inventory[id]||0)<=0)return; const old=game.player.equipment[it.slot];const oldIt=old?DB.items[old]:null;const msg=`Slot: ${it.slot}\nActual: ${oldIt?`${oldIt.icon} ${oldIt.name} (${itemBonusText(oldIt)})`:'— vacío —'}\nNuevo: ${it.icon} ${it.name} (${itemBonusText(it)})\n\n¿Equipar?`;if(!confirm(msg))return; if(old)addItem(old,1); removeItem(id,1); game.player.equipment[it.slot]=id; notify(`Equipado: ${it.icon} ${it.name}`,'good'); if(id==='pants')game.quests.find(q=>q.id==='pants').done=true; if(id==='warGauntlets'||id==='brassKnuckles')game.quests.find(q=>q.id==='gauntlets').done=true; render()}
-function unequipItem(slot){if(!(slot in game.player.equipment))return;const old=game.player.equipment[slot];if(!old){notify('Ese slot ya está vacío.','warn');return}game.player.equipment[slot]=null;addItem(old,1);notify(`Desequipado: ${getItem(old).icon} ${getItem(old).name}`,'warn');render()}
-function useItem(id){const it=DB.items[id];if(!it||!removeItem(id,1))return; if(it.use==='heal'){game.player.hp=clamp(game.player.hp+Math.floor(maxHp('player')*it.value),0,maxHp('player'));notify('Te tomás una poción. La carne vuelve a acordarse de su forma.','good')} if(it.use==='mana'){game.player.mana=clamp(game.player.mana+it.value,0,maxMana('player'));notify('Recuperás maná. No mucho, pero algo es algo.','magic')} if(it.use==='bleed'){game.player.statuses=game.player.statuses.filter(s=>s!=='bleed');notify('Te vendás como podés. Menos sangre en el piso.','good')} if(it.use==='ironSkin'){game.player.temp.ironSkin=true;notify('Tu piel se endurece como si fueras una estatua con problemas de autoestima.','magic')} if(it.use==='reflex'){game.player.statuses.push('reflex');notify('Sentís que el tiempo baja de velocidad por un rato.','magic')} if(it.use==='confuse'){if(game.mode==='combat'&&game.combat&&game.combat.enemies.length){const e=activeEnemy();if(e&&addStatus(e,'stunned'))notify(`${e.name} queda confundido y aturdido.`, 'magic')}else notify('Guardás el pergamino para una pelea real.','warn');} render()}
-function openOneBox(id){if(!DB.lootBoxes[id]||!removeItem(id,1))return; const box=DB.lootBoxes[id];notify(`Abrís ${box.icon} ${box.name}.`,'magic');box.drops.forEach(([item,q])=>{addItem(item,q);notify(`Recibido: ${getItem(item).icon} ${getItem(item).name} x${q}`,'good')});render()}
-function openBoxes(){const boxes=Object.keys(DB.lootBoxes).filter(id=>(game.inventory[id]||0)>0).sort((a,b)=>DB.lootBoxes[a].rarity-DB.lootBoxes[b].rarity);if(!boxes.length){notify('No tenés cajas para abrir. Qué pobreza conceptual.','warn');render();return}boxes.forEach(id=>{while((game.inventory[id]||0)>0)openOneBox(id)});}
-function sleep(){game.player.hp=maxHp('player');game.donut.hp=maxHp('donut');game.player.mana=maxMana('player');game.donut.mana=maxMana('donut');advanceTime(8);notify('Dormís en una habitación segura. AGOTADO eliminado. Dónut usó tu cuello como almohada real.','good');render()}
-function eat(){notify('Tally sirve vindaloo perfecto y paté de salmón. Moral restaurada; hambre cancelada.','good');advanceTime(.5);render()} function shower(){notify('Ducha caliente. El agua sale negra un rato. La dignidad sube 1 punto imaginario.','good');advanceTime(.35);render()} function talkTally(){notify('Tally: “Comida sí. Preguntas de mazmorra no. No fumar.”','warn');render()} function askMordecai(){notify('Mordecai: “Los primeros pisos son para descubrir tu build. No aceptes tratos malos antes del piso 12.”','magic');render()} function enterDangerZone(){if(!(locations[game.location].encounter||encounterPools[game.location])){notify('Acá no hay zona peligrosa para forzar.','warn');return}const pack=generateEncounterForLocation(game.location);pack.push(pack[rnd(0,pack.length-1)]);game.riskBonusXp=24;notify('Entrás a lo bruto: más enemigos, pero recompensa de XP si sobrevivís.','bad');startCombat(pack)} function lootRebeccaFast(){if(game.quests.find(q=>q.id==='lootRebeccaDone')){notify('Ya saqueaste este cadáver. No queda ni vergüenza.','warn');return}addItem('dignityBox',1);addItem('healingPotion',3);if(Math.random()<.55){const dmg=rnd(8,16);game.player.hp=clamp(game.player.hp-dmg,1,maxHp('player'));notify(`Saqueo rápido: te cortás con metal oxidado (-${dmg} HP).`,'bad')}if(Math.random()<.45){notify('El ruido del saqueo rápido atrae enemigos.','warn');startCombat(['rat','scatterer'])}game.quests.push({id:'lootRebeccaDone',text:'Saqueaste el cadáver de Rebecca W. y eso te dejó una sensación horrible.',done:true});notify('Saqueás rápido: más botín, más riesgo.','warn');render()} function lootRebeccaCareful(){if(game.quests.find(q=>q.id==='lootRebeccaDone')){notify('Ya saqueaste este cadáver. No queda ni vergüenza.','warn');return}addItem('dignityBox',1);addItem('healingPotion',1);addItem('bandage',1);game.quests.push({id:'lootRebeccaDone',text:'Saqueaste el cadáver de Rebecca W. y eso te dejó una sensación horrible.',done:true});notify('Saqueás con cuidado: menos botín, sin riesgos extra.','good');render()}
-function peekNest(){notify('Dónut ve montones de cucarachas y algo grande. El olor atraviesa el concepto de nariz.','warn');render()} function throwDynamite(){if(!removeItem('dynamite',1)){notify('No tenés dinamita. La prudencia gana por falta de recursos.','warn');return}game.player.hp=clamp(game.player.hp-35,1,maxHp('player'));game.bossLootPenalty=true;addItem('goldCrowd',1);addItem('silverGoblin',1);notify('¡BUM! Limpiás parte del nido, pero te dañás y podés arruinar loot del jefe.','bad');startBoss(true)}
-function useNeighborhoodMap(){game.neighborhoodRevealed=true;notify('Usás el mapa de barrio. Se revelan safe rooms, cadáveres, amenazas y rutas importantes.','magic');render()}
-function searchStairs(){if(!isStairsVisible()){notify('La escalera sigue bloqueada. Cumplí el objetivo actual para desbloquearla.','warn');return}notify('La compuerta se abre y aparece la escalera al piso 2.','good');moveTo('stairs_to_floor2')}
-function descendFloor(){if(game.location!=='stairs_to_floor2')return;game.quests.find(q=>q.id==='descend').done=true;game.runStats.win=true;showVictorySummary()}
-function startCombat(ids){let enemies=ids.map(id=>{const e=deepClone(DB.enemies[id]);e.id=id;e.maxHp=e.hp;e.statuses=[];return e});if((game.inventory.goblinPass||0)>0){const before=enemies.length;enemies=enemies.filter(e=>!e.neutralWithGoblinPass);if(before!==enemies.length)notify('🎟️ El pase goblin evita un combate innecesario.','good')}if(enemies.length>MAX_COMBAT_ENEMIES){enemies=enemies.slice(0,MAX_COMBAT_ENEMIES);notify('⚙️ Sistema: límite de combate alcanzado, se recorta la horda para mantener fluidez.','warn')}if(!enemies.length){notify('Los enemigos te dejan pasar por ahora. Raro pero útil.','magic');render();return}targetIndex=0;game.combat={boss:false,enemies,round:1,log:[],phase:'player'};game.mode='combat';openCombatModal(false)} function startBoss(preDamaged=false){const e=deepClone(DB.enemies.hoarder);e.id='hoarder';e.maxHp=e.hp;if(preDamaged)e.hp=45;e.statuses=[];game.location='boss_room';if(!game.explored.includes('boss_room'))game.explored.push('boss_room');targetIndex=0;game.combat={boss:true,enemies:[e],round:1,log:["VERSUS: El séquito de la Princesa Dónut vs La Acaparadora"],phase:'player',addsTimer:2};game.mode='combat';openCombatModal(true)}
-function openCombatModal(isBoss){document.getElementById('modal').classList.add('show');document.getElementById('modalTitle').textContent=isBoss?'☠️ ¡Batalla contra jefe!':'⚔️ Combate';renderCombatModal()}
-function renderCombatModal(){const c=game.combat;if(!c)return;let body=c.boss?`<div class="big-versus">VERSUS</div>`:"";body+=`<div class="combat-grid"><div><h3>Party</h3><div class="enemy-card"><b>🧍 Carl</b>${hpBar(game.player.hp,maxHp('player'))}<div class="small muted">MP ${game.player.mana}/${maxMana('player')}</div><div class="small">Estados: ${formatStatuses(game.player.statuses,'player')}</div></div><div class="enemy-card"><b>🐱 Dónut</b>${hpBar(game.donut.hp,maxHp('donut'),'mana')}<div class="small muted">MP ${game.donut.mana}/${maxMana('donut')}</div><div class="small">Estados: ${formatStatuses(game.donut.statuses,'donut')}</div></div><h3>Acciones</h3><div class="actions" style="padding:0;border:0;background:none"><button onclick="combatAction('punch')">👊 Puñetazo</button><button onclick="combatAction('kick')">🦶 Patada</button><button onclick="combatAction('stomp')">🦶💥 Pisar</button><button onclick="combatAction('dynamite')">💣 Dinamita</button><button onclick="combatAction('heal')">🧪 Poción</button><button onclick="combatAction('iron')">🧴 Piel hierro</button><button onclick="inspectTarget()">🔎 Inspeccionar</button>${c.boss?'':`<button onclick="fleeCombat()">🏃 Huir</button>`}</div></div><div><h3>Enemigos</h3>${c.enemies.map((e,i)=>`<div class="enemy-card"><b>${e.icon} ${e.name} Nv.${e.level}</b>${hpBar(e.hp,e.maxHp,e.hp/e.maxHp<.35?'bad':'')}<div class="small muted">${e.desc}</div><div class="small">Estados: ${formatStatuses(e.statuses,'enemy')}</div><button onclick="targetIndex=${i};renderCombatModal()">${targetIndex===i?'🎯 Objetivo':'Elegir'}</button></div>`).join('')}</div></div><h3>Log de combate</h3><div class="log">${c.log.slice(-10).reverse().map(x=>`<div class="log-entry">${x}</div>`).join('')}</div>`;document.getElementById('modalBody').innerHTML=body;document.getElementById('modalTitle').textContent=c.boss?'☠️ ¡Batalla contra jefe!':'⚔️ Combate'}
-let targetIndex=0;
-function activeEnemy(){const e=game.combat.enemies[targetIndex];return e||game.combat.enemies[0]}
-function combatLog(s){game.combat.log.push(s)}
-function statusLabel(s){return {poison:'☠️ Veneno',bleed:'🩸 Hemorragia',stunned:'💫 Aturdido',septicemia:'🧫 Septicemia'}[s]||s}
-function formatStatuses(list,who='enemy'){if(!list||!list.length)return '—';return list.map(statusLabel).join(' · ')}
-function addStatus(target,status){if(!target.statuses)target.statuses=[];if(status==='septicemia'&&target.statuses.includes('septicemia'))return false;if(target.statuses.includes(status))return false;target.statuses.push(status);return true}
-function removeStatus(target,status){if(!target.statuses)return;target.statuses=target.statuses.filter(s=>s!==status)}
-function inspectTarget(){const e=activeEnemy();if(!e)return;const tips=[];if(e.statusOnHit==='poison')tips.push('• Sus golpes pueden aplicar veneno.');if(e.momentum)tips.push('• Si queda aturdido, evitás su ataque de impulso.');if(e.boss)tips.push('• Es jefe: priorizá dinamita y control de estados.');tips.push('• Hemorragia y veneno hacen daño por turno.');tips.push('• Septicemia pega fuerte y no se acumula.');combatLog(`Inspección ${e.icon} ${e.name}: ${e.desc}`);tips.forEach(t=>combatLog(t));renderCombatModal()}
-function unarmedDamage(kind){const st=calcStats('player');let dmg=st.strength+calcSkill('player','unarmed')*2+calcSkill('player','pugilism')*2; if(kind==='kick')dmg+=calcSkill('player','footSoldier')*3+calcBonus('player','kickDamage');if(kind==='stomp')dmg+=calcSkill('player','squish')*4+calcBonus('player','stompDamage');if(kind==='punch')dmg+=calcBonus('player','punchDamage');if(game.player.equipment.fist==='brassKnuckles'||game.player.equipment.hands==='warGauntlets')dmg+=8+calcSkill('player','ironFist')*2;return rnd(Math.floor(dmg*.75),Math.ceil(dmg*1.15))}
-function combatAction(a){const c=game.combat;if(!c)return;let e=activeEnemy();if(!e)return;trackCombatCombo(a);if(a==='heal'){if(removeItem('healingPotion',1)){const healed=Math.floor(maxHp('player')*.5);game.player.hp=clamp(game.player.hp+healed,0,maxHp('player'));combatLog(`Carl usa poción y cura ${healed} HP.`)}else combatLog('No quedan pociones.');enemyTurn();return} if(a==='iron'){if(removeItem('ironSkin',1)){game.player.temp.ironSkin=true;combatLog('Carl usa Piel de hierro (mitad de daño físico este combate).')}else combatLog('No queda Piel de hierro.');enemyTurn();return} if(a==='dynamite'){if(!removeItem('dynamite',1)){combatLog('No queda dinamita.')}else{const chaos=calcBonus('player','explosives');const self=rnd(8,22)+Math.max(0,Math.floor(chaos/3));game.player.hp=clamp(game.player.hp-self,0,maxHp('player'));c.enemies.forEach(en=>{const hit=rnd(35,60)+chaos;en.hp-=hit;en.lastHit={method:'dynamite',crit:false};combatLog(`💣 ${en.name} recibe ${hit} de explosión.`)});combatLog(`Dinamita goblin: Carl recibe ${self}.`);trackShow('dynamite',5,'Explosión en vivo. La audiencia pide repetición.');skillUp('player','explosives',1);checkDeadEnemies()}enemyTurn();return}
- let dmg=unarmedDamage(a); if(a==='punch'&&!hasHandProtection()) {const recoil=Math.max(0,rnd(2,6)-calcBonus('player','recoilReduction'));game.player.hp=clamp(game.player.hp-recoil,0,maxHp('player'));if(recoil>0)combatLog(`Te lastimás la mano (${recoil}) por pegarle a algo demasiado sólido.`);else combatLog('Los guanteletes absorben el retroceso.')} const crit=(a==='stomp'&&e.statuses.includes('stunned'))||Math.random()<((calcBonus('player','critChance')||0)/100); if(crit){dmg=Math.floor(dmg*1.7);combatLog('¡Crítico preparado! Aturdido + pisotón al punto débil.');trackShow('critical',7,'Crítico brutal en prime time.')} if(e.weakToStomp&&a==='stomp'){dmg=Math.floor(dmg*1.25);combatLog('El objetivo es débil al pisotón.')} if(e.physicalResist&&a!=='dynamite'){dmg=Math.floor(dmg*0.8);combatLog('La armadura del enemigo amortigua el golpe.')} e.hp-=dmg;e.lastHit={method:a,crit};combatLog(`Carl usa ${a==='punch'?'puñetazo':a==='kick'?'patada':'pisotón'} e inflige ${dmg}.`); const stunChance=.25+(calcBonus('player','stunChance')||0)/100; if(Math.random()<stunChance&&addStatus(e,'stunned'))combatLog(`${e.name} queda aturdido.`); if((a==='punch'||a==='kick')&&Math.random()<.2&&addStatus(e,'bleed'))combatLog(`${e.name} entra en hemorragia.`); checkDeadEnemies(); donutAuto(); enemyTurn()}
-function hasHandProtection(){return game.player.equipment.hands==='warGauntlets'||game.player.equipment.fist==='brassKnuckles'}
-function donutAuto(){const c=game.combat;if(!c||!c.enemies.length)return;let e=c.enemies.find(x=>x.hp>0);if(!e)return;if(game.donut.mana>=5){game.donut.mana-=5;let dmg=rnd(22,34)+calcSkill('donut','magicMissile')*3+calcBonus('donut','magicDamage');if(e.magicResist)dmg=Math.floor(dmg*.75);if(e.weakToMagic)dmg=Math.floor(dmg*1.25);e.hp-=dmg;combatLog(`Dónut dispara Proyectil mágico (${dmg}).`);if(e.magicResist)combatLog('La criatura resiste parte de la magia.');if(Math.random()<.15&&addStatus(e,'septicemia')&&!e.immuneToPoison)combatLog(`${e.name} contrae SEPTICEMIA.`)}else if((game.inventory.manaPotion||0)>0&&game.donut.potionCooldown<=0){removeItem('manaPotion',1);game.donut.mana=clamp(game.donut.mana+8,0,maxMana('donut'));game.donut.potionCooldown=2;combatLog('Dónut bebe una poción de maná con indignación.')}else{let dmg=rnd(10,18)+Math.floor(calcStats('donut').strength/3);e.hp-=dmg;combatLog(`Dónut usa garras (${dmg}) y se queja del trabajo manual.`)}checkDeadEnemies()}
-function enemyTurn(){const c=game.combat;if(!c)return;if(game.donut.potionCooldown>0)game.donut.potionCooldown--;c.enemies=c.enemies.filter(e=>e.hp>0);if(!c.enemies.length){winCombat();return}if(c.boss&&c.round%2===0&&c.enemies.length<MAX_COMBAT_ENEMIES){const add=deepClone(DB.enemies.guardian);add.id='guardian';add.maxHp=add.hp;add.statuses=[];c.enemies.push(add);combatLog('La Acaparadora vomita un guardián de nidada. Lamentablemente.')}const playerTick=[['poison',6],['bleed',8]];playerTick.forEach(([st,d])=>{if(game.player.statuses.includes(st)){game.player.hp=clamp(game.player.hp-d,0,maxHp('player'));combatLog(`🧍 Carl sufre ${d} por ${statusLabel(st)}.`)}});c.enemies.forEach(e=>{if(e.statuses.includes('septicemia')&&!e.immuneToPoison){e.hp-=18;combatLog(`${e.name} sufre 18 por septicemia.`)}if(e.statuses.includes('poison')&&!e.immuneToPoison){e.hp-=7;combatLog(`${e.name} sufre 7 por veneno.`)}if(e.statuses.includes('bleed')){e.hp-=9;combatLog(`${e.name} pierde 9 por hemorragia.`)}if(e.hp<=0)return;if(e.statuses.includes('stunned')){combatLog(`${e.name} pierde el turno por aturdimiento.`);removeStatus(e,'stunned');return}let target=Math.random()<.35?'donut':'player';let dmg=rnd(Math.floor(e.atk*.7),Math.ceil(e.atk*1.3));if(target==='player'){if(!e.armorPiercing){dmg=Math.max(1,dmg-calcBonus('player','armor'));if(game.player.temp.ironSkin)dmg=Math.ceil(dmg/2)}else{dmg=Math.max(1,dmg-Math.floor((calcBonus('player','pierceResist')||0)/12));combatLog('Ataque perforante: tu armadura ayuda poco.')}if(e.hatesGoblinPass&&(game.inventory.goblinPass||0)>0){dmg=Math.floor(dmg*1.2);combatLog('El feérico reconoce el pase goblin y te odia un 20% más.')}game.player.hp=clamp(game.player.hp-dmg,0,maxHp('player'));combatLog(`${e.name} golpea a Carl por ${dmg}.`);if(e.statusOnHit==='poison'&&!hasResist('poison')&&addStatus(game.player,'poison'))combatLog('Carl queda envenenado.');if((e.bleed||Math.random()<.12)&&!hasResist('bleed')&&addStatus(game.player,'bleed'))combatLog('Carl entra en hemorragia.');if(e.stealsItem&&Math.random()<.25){const steals=Object.keys(game.inventory).filter(k=>(game.inventory[k]||0)>0&&DB.items[k]&&DB.items[k].type==='consumable');if(steals.length){const pick=steals[rnd(0,steals.length-1)];removeItem(pick,1);combatLog(`${e.name} roba ${getItem(pick).name}.`)}}const th=calcBonus('player','thorns');if(th>0){e.hp-=th;combatLog(`Tu equipo espinado devuelve ${th} daño.`)}}else{game.donut.hp=clamp(game.donut.hp-dmg,0,maxHp('donut'));combatLog(`${e.name} alcanza a Dónut por ${dmg}.`)}if(e.summons&&Math.random()<.15){if(c.enemies.length<MAX_COMBAT_ENEMIES){const add=deepClone(DB.enemies[e.summons]);add.id=e.summons;add.maxHp=add.hp;add.statuses=[];c.enemies.push(add);combatLog(`${e.name} invoca un aliado (${add.name}).`)}else combatLog('⚙️ Sistema: no entra otro invocado, arena al límite.')}if(e.fleeOnLowHp&&e.hp>0&&e.hp<Math.floor(e.maxHp*.25)&&Math.random()<.35){e.hp=0;e.fled=true;combatLog(`${e.name} huye arrastrándose.`)}});c.round++;regenTick();if(game.player.hp<=0||game.donut.hp<=0){const deadBy=c.enemies[0]?.name||'la mazmorra';const cause=game.player.hp<=0?`Carl cayó en combate contra ${deadBy}.`:`Dónut cayó en combate contra ${deadBy}.`;showDeathSummary(cause);return}checkDeadEnemies();renderCombatModal();render()}
-function hasResist(r){const eq=game.player.equipment;const base=Object.values(eq).some(id=>DB.items[id]&&DB.items[id].resists&&DB.items[id].resists.includes(r));if(base)return true;if(r==='poison'&&calcBonus('player','poisonResist')>0)return Math.random()<calcBonus('player','poisonResist')/100;if(r==='bleed'&&calcBonus('player','bleedResist')>0)return Math.random()<calcBonus('player','bleedResist')/100;return false}
-function regenTick(){let regen=calcSkill('player','regen');if(regen>0)game.player.hp=clamp(game.player.hp+regen*5,0,maxHp('player'));game.player.mana=clamp(game.player.mana+calcBonus('player','manaRegen'),0,maxMana('player'));game.donut.mana=clamp(game.donut.mana+2,0,maxMana('donut'))}
-function checkDeadEnemies(){const c=game.combat;if(!c)return;c.enemies.forEach(e=>{if(e.hp<=0&&!e.dead){e.dead=true;if(e.fled){combatLog(`🏃 ${e.name} escapó.`);return}combatLog(`☠️ ${e.name} muere.`);game.progress.enemiesKilled++;if(e.boss)game.progress.bossKilled=true;trackShow('kill',3,'KO televisado.');if(e.lastHit&&e.lastHit.crit)trackShow('kill_crit',8,'Remate crítico, el chat se vuelve loco.');if(e.lastHit&&e.lastHit.method==='dynamite')trackShow('kill_dynamite',10,'Baja con dinamita. Esto vende camisetas.');const gained=gainXP(e.xp||10);combatLog(`XP: Carl +${gained.playerXp} / Dónut +${gained.donutXp}.`);(e.loot||[]).forEach(([it,q])=>{addItem(it,q);combatLog(`🎁 Loot: ${getItem(it).icon} ${getItem(it).name} x${q}`)})}});c.enemies=c.enemies.filter(e=>e.hp>0);if(c.enemies.length===0){targetIndex=0}else if(!c.enemies[targetIndex]){targetIndex=0;combatLog(`🎯 Objetivo automático: ${c.enemies[0].name}.`)}}
-function gainXP(xp){const playerXp=Math.floor(xp*.6),donutXp=Math.floor(xp*.55);game.player.xp+=playerXp;game.donut.xp+=donutXp;while(game.player.xp>=game.player.xpNext){game.player.xp-=game.player.xpNext;game.player.level++;game.player.statPoints+=3;game.player.xpNext=Math.floor(game.player.xpNext*1.32);notify(`Carl sube a nivel ${game.player.level}. +3 puntos bloqueados.`,'good');['pugilism','unarmed','footSoldier','squish'].forEach(s=>skillUp('player',s,1))}while(game.donut.xp>=game.donut.xpNext){game.donut.xp-=game.donut.xpNext;game.donut.level++;game.donut.stats.strength++;game.donut.stats.intelligence++;game.donut.stats.charisma+=2;game.donut.xpNext=Math.floor(game.donut.xpNext*1.32);notify(`Dónut sube a nivel ${game.donut.level}. Se vuelve más insoportable y más útil.`,'magic')}return {playerXp,donutXp}}
-function skillUp(who,skill,amt){const actor=who==='donut'?game.donut:game.player;actor.skills[skill]=(actor.skills[skill]||0)+amt}
-function cleanupAfterCombat(){game.player.temp.ironSkin=false;game.player.audience.combo=0;targetIndex=0}
-function winCombat(){const c=game.combat;if(c.boss){game.bossDefeated=true;game.progress.bossKilled=true;game.runStats.bossesDefeated++;game.quests.find(q=>q.id==='premiere').done=true;game.quests.find(q=>q.id==='nest').done=true;trackShow('boss',14,'Jefe derrotado en cadena nacional.');addItem('bronzeBoss',1);addItem('mapNeighborhood',1);if(game.bossLootPenalty){notify('La explosión previa arruinó parte del botín del jefe.','warn');game.bossLootPenalty=false}else addItem('dignityBox',1);game.player.badges.push('★ jefe');notify('¡Victoria contra jefe! Recibís caja de jefe, mapa de barrio y una estrella de prestigio.','gold');game.location='nest_door'}else{if(Math.random()<.35)addItem('bronzeAdventurer',1);notify('Combate ganado. Más sangre, más XP, más preguntas existenciales.','good')}if(game.riskBonusXp>0){const bonus=game.riskBonusXp;game.riskBonusXp=0;const g=gainXP(bonus);notify(`Zona peligrosa superada: bonus ${bonus} XP (Carl ${g.playerXp} / Dónut ${g.donutXp}).`,'magic')}if(game.player.hp<=Math.floor(maxHp('player')*.2)){trackShow('clutch',9,'Ganaste con poca vida. El público ama el drama.');game.runStats.deathsAvoided++}cleanupAfterCombat();game.combat=null;game.mode='explore';closeModal();advanceTime(.35);render()}
-function fleeCombat(){if(game.combat&&game.combat.boss){combatLog('No se puede huir de un jefe. La puerta se ríe de vos.');renderCombatModal();return}if(game.riskBonusXp>0){notify('Perdés el bonus de zona peligrosa por retirarte.','warn');game.riskBonusXp=0}cleanupAfterCombat();game.combat=null;game.mode='explore';closeModal();notify('Huís del combate. No heroico, pero estadísticamente sensato.','warn');advanceTime(.2);render()}
-function showVictorySummary(){game.mode='victory';const done=game.quests.filter(q=>q.done).length;const a=game.player.audience;openModal('help');document.getElementById('modalTitle').textContent='🏁 Encontraste la escalera al piso 2';document.getElementById('modalBody').innerHTML=`<p><b>Vertical slice completada.</b> Carl y Dónut salieron del piso 1 con estilo cuestionable.</p><div class="statline"><span>Nivel Carl</span><b>${game.player.level}</b></div><div class="statline"><span>Nivel Dónut</span><b>${game.donut.level}</b></div><div class="statline"><span>Jefes derrotados</span><b>${game.runStats.bossesDefeated}</b></div><div class="statline"><span>Audiencia total</span><b>${(a.views||0).toLocaleString('es-AR')} vistas · ${a.followers||0} seguidores · ${a.favorites||0} favoritos · ${a.patrons||0} mecenas</b></div><div class="statline"><span>Muertes evitadas / logros</span><b>${game.runStats.deathsAvoided} clutchs · ${done} objetivos cumplidos</b></div><div class="actions" style="padding:10px 0 0;border:0;background:none"><button onclick="resetGame()">🔁 Nueva run</button><button onclick="closeModal()">Cerrar</button></div>`;notify('Resumen final disponible: run completada.','gold')}
-function showDeathSummary(cause='Desconocida'){game.mode='death';const a=game.player.audience||{};const survived=Math.max(0,FLOOR_START_HOURS-game.floorTimeHours);deathRestartBonus=Math.min(3,deathRestartBonus+1);openModal('help');document.getElementById('modalTitle').textContent='💀 Fin de run';document.getElementById('modalBody').innerHTML=`<p><b>Sistema:</b> “Buen intento, crawler. El piso igual te cobró peaje.”</p><div class="statline"><span>Causa de muerte</span><b>${cause}</b></div><div class="statline"><span>Nivel alcanzado</span><b>${game.player.level}</b></div><div class="statline"><span>Enemigos matados</span><b>${game.progress.enemiesKilled}</b></div><div class="statline"><span>Jefes derrotados</span><b>${game.runStats.bossesDefeated}</b></div><div class="statline"><span>Audiencia</span><b>${(a.views||0).toLocaleString('es-AR')} vistas · ${a.followers||0} seguidores · ${a.favorites||0} favoritos · ${a.patrons||0} mecenas</b></div><div class="statline"><span>Tiempo sobrevivido</span><b>${formatHours(survived)} · ${game.turn} turnos</b></div><div class="small muted" style="margin-top:8px">Bonus por reinicio: +${deathRestartBonus} poción(es) de sanación.</div><div class="actions" style="padding:10px 0 0;border:0;background:none"><button onclick="restartAfterDeath()">🔁 Reiniciar run</button></div>`;notify(`Fin de run: ${cause}`,'bad')}
-function restartAfterDeath(){const bonus=deathRestartBonus;resetGame();if(bonus>0){addItem('healingPotion',bonus);notify(`Roguelite light: empezás con +${bonus} poción(es).`,'good')}render()}
-function openModal(kind){document.getElementById('modal').classList.add('show');const title=document.getElementById('modalTitle'),body=document.getElementById('modalBody');if(kind==='help'){title.textContent='❔ Ayuda rápida';body.innerHTML=`<p><b>Objetivo del MVP:</b> farmear, equiparte, vencer al jefe de barrio y sobrevivir.</p><p>Usá safe rooms para dormir, comer y abrir cajas. En combate, combiná Proyectil mágico de Dónut con golpes/pisotones de Carl. La dinamita pega fuerte, pero también te revienta.</p><p>Probá saquear a Rebecca, abrir cajas, equipar pantalones/guanteletes y usar el mapa de barrio.</p>`}if(kind==='notifications'){title.textContent='📁 Notificaciones';game.notifications.forEach(n=>n.read=true);body.innerHTML=game.notifications.map(n=>`<div class="log-entry ${n.type}">${n.msg}</div>`).join('')||'No hay notificaciones.';renderHUD()}}
-function closeModal(){if(game.mode==='combat'&&game.combat){combatLog('No podés cerrar la ventana durante combate.');renderCombatModal();return}if(game.mode==='death'){notify('Sistema: reiniciá la run para salir de este glorioso fracaso.','warn');return}document.getElementById('modal').classList.remove('show'); }
-function saveGame(){localStorage.setItem('mazmorraMVP',JSON.stringify(game));notify('Partida guardada en este navegador.','good');render()} function loadGame(){const s=localStorage.getItem('mazmorraMVP');if(!s){notify('No hay partida guardada.','warn');render();return}try{game=normalizeGameState(JSON.parse(s));if(game.mode==='combat'&&game.combat){game.mode='explore';game.combat=null}targetIndex=0;notify('Partida cargada.','good')}catch(_err){game=defaultGame();notify('La partida guardada estaba dañada. Se restauró un estado nuevo.','bad')}render()} function resetGame(){game=defaultGame();targetIndex=0;notify('Nueva mazmorra inicializada. La dignidad sigue opcional.','warn');render()}
-notify('MVP iniciado: Carl y Dónut están en una estancia segura. Abrí cajas, explorá y buscá problemas.','magic');render();
-</script>
+  <h1>To Do List</h1>
+  <div id="status" class="muted">Conectando...</div>
+
+  <form id="form">
+    <input id="text" placeholder="Nueva tarea..." autocomplete="off" />
+    <button>Agregar</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Hecha</th>
+        <th>Tarea</th>
+        <th>Creada</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script type="module">
+    import { init, id } from "https://esm.sh/@instantdb/core";
+
+    const APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
+
+    const db = init({ appId: APP_ID });
+
+    const status = document.querySelector("#status");
+    const form = document.querySelector("#form");
+    const text = document.querySelector("#text");
+    const rows = document.querySelector("#rows");
+
+    let todos = [];
+
+    db.subscribeQuery({ todos: {} }, (resp) => {
+      if (resp.error) {
+        status.textContent = "Error: " + resp.error.message;
+        return;
+      }
+
+      todos = (resp.data?.todos ?? [])
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+      status.textContent = `Sincronizado · ${todos.length} tarea(s)`;
+      render();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const value = text.value.trim();
+      if (!value) return;
+
+      await db.transact(
+        db.tx.todos[id()].create({
+          text: value,
+          done: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        })
+      );
+
+      text.value = "";
+      text.focus();
+    });
+
+    function render() {
+      rows.innerHTML = "";
+
+      for (const todo of todos) {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>
+            <input type="checkbox" ${todo.done ? "checked" : ""} data-action="toggle">
+          </td>
+          <td class="${todo.done ? "done" : ""}">${escapeHtml(todo.text ?? "")}</td>
+          <td>${todo.createdAt ? new Date(todo.createdAt).toLocaleString() : "-"}</td>
+          <td class="actions">
+            <button data-action="edit">Editar</button>
+            <button data-action="delete">Borrar</button>
+          </td>
+        `;
+
+        tr.querySelector('[data-action="toggle"]').onclick = () => toggleTodo(todo);
+        tr.querySelector('[data-action="edit"]').onclick = () => editTodo(todo);
+        tr.querySelector('[data-action="delete"]').onclick = () => deleteTodo(todo);
+
+        rows.appendChild(tr);
+      }
+    }
+
+    async function toggleTodo(todo) {
+      await db.transact(
+        db.tx.todos[todo.id].update({
+          done: !todo.done,
+          updatedAt: Date.now()
+        })
+      );
+    }
+
+    async function editTodo(todo) {
+      const newText = prompt("Editar tarea:", todo.text ?? "");
+      if (newText === null) return;
+
+      const clean = newText.trim();
+      if (!clean) return;
+
+      await db.transact(
+        db.tx.todos[todo.id].update({
+          text: clean,
+          updatedAt: Date.now()
+        })
+      );
+    }
+
+    async function deleteTodo(todo) {
+      if (!confirm("¿Borrar esta tarea?")) return;
+      await db.transact(db.tx.todos[todo.id].delete());
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[c]));
+    }
+  </script>
 </body>
 </html>
