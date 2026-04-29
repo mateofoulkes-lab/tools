@@ -7,13 +7,15 @@
 <style>
 body{font-family:system-ui,sans-serif;margin:0;background:#111;color:#eee}
 .wrap{max-width:760px;margin:0 auto;padding:16px}
-canvas{display:block;margin:0 auto;border:1px solid #333;border-radius:12px;background:#fff}
+canvas{display:block;margin:0 auto;border:1px solid #333;border-radius:12px;background:#fff;max-width:100%;touch-action:none}
 .card{border:1px solid #333;border-radius:12px;padding:12px;margin:12px 0;background:#181818}
-button{padding:12px 14px;font-size:16px;border:1px solid #444;border-radius:10px;background:#222;color:#eee;cursor:pointer}
+button{padding:12px 14px;font-size:16px;border:1px solid #444;border-radius:10px;background:#222;color:#eee;cursor:pointer;margin:4px}
+button.active{background:#3b43ff;border-color:#6d72ff}
 button:active{transform:translateY(1px)}
 .muted{color:#9aa0a6;font-size:13px}
-.big{font-size:20px}
+.big{font-size:22px}
 .center{text-align:center}
+.debug{white-space:pre-wrap;background:#0b0b0b;border:1px solid #333;border-radius:10px;padding:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#cfd3dc;text-align:left;overflow:auto}
 </style>
 </head>
 <body>
@@ -23,7 +25,6 @@ button:active{transform:translateY(1px)}
 // CONFIG
 // ============================
 window.APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
-// modo por URL: ?mode=controller o ?mode=screen
 const urlParams = new URLSearchParams(window.location.search);
 const MODE = urlParams.get("mode") || "screen";
 </script>
@@ -42,21 +43,19 @@ const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.rando
 function App(){
   const publish = db.rooms.usePublishTopic(room, "move");
 
-  // ---------- STATE LIGERO ----------
   const paddleAngleRef = useRef(0);
   const canvasRef = useRef(null);
   const lastSend = useRef(0);
   const dragging = useRef(false);
-  const last = useRef({x:0,y:0});
-
-  // balls solo en screen
   const ballsRef = useRef([]);
   const lastTimeRef = useRef(performance.now());
+  const sensorEvents = useRef({orientation:0,motion:0,lastOrientationTime:0,lastMotionTime:0});
+  const sensorMode = useRef("none");
 
   const [status,setStatus] = useState("Inicializando...");
   const [angleUI,setAngleUI] = useState(0);
+  const [debug,setDebug] = useState("Sin datos de sensores todavía.");
 
-  // ---------- RECEPCIÓN ----------
   db.rooms.useTopicEffect(room, "move", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
     if (msg.type === "paddle"){
@@ -64,47 +63,148 @@ function App(){
     }
   });
 
-  // ---------- ENVÍO ----------
+  function switchMode(nextMode){
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", nextMode);
+    window.location.href = url.toString();
+  }
+
   function sendAngle(angle, immediate=false){
     const now = Date.now();
-    if (!immediate && now - lastSend.current < 16) return; // ~60fps máx
+    if (!immediate && now - lastSend.current < 16) return;
     lastSend.current = now;
     publish({ type:"paddle", angle, clientId: CLIENT_ID, sentAt: Date.now() });
   }
 
-  // ---------- CONTROLLER (celular) ----------
+  function applyAngle(angle, source){
+    const clean = clamp(Number(angle || 0), -60, 60);
+    paddleAngleRef.current = clean;
+    sensorMode.current = source;
+    setAngleUI(clean);
+    sendAngle(clean);
+  }
+
   async function activateSensors(){
     try{
-      if (!window.isSecureContext){
-        setStatus("Necesita HTTPS (GitHub Pages). No funciona en file://");
+      const secure = window.isSecureContext;
+      const hasOrientation = !!window.DeviceOrientationEvent;
+      const hasMotion = !!window.DeviceMotionEvent;
+      const orientationPermission = hasOrientation && typeof DeviceOrientationEvent.requestPermission === "function";
+      const motionPermission = hasMotion && typeof DeviceMotionEvent.requestPermission === "function";
+
+      setStatus("Activando sensores...");
+      setDebug(
+        `secureContext: ${secure}\n` +
+        `DeviceOrientationEvent: ${hasOrientation}\n` +
+        `DeviceMotionEvent: ${hasMotion}\n` +
+        `orientation permission API: ${orientationPermission}\n` +
+        `motion permission API: ${motionPermission}`
+      );
+
+      if (!secure){
+        setStatus("Necesita HTTPS. Probalo desde GitHub Pages, no file://.");
         return;
       }
 
-      if (typeof DeviceOrientationEvent?.requestPermission === "function"){
+      if (!hasOrientation && !hasMotion){
+        setStatus("Este navegador no expone sensores de orientación/movimiento.");
+        return;
+      }
+
+      if (orientationPermission){
         const p = await DeviceOrientationEvent.requestPermission();
         if (p !== "granted"){
-          setStatus("Permiso denegado");
+          setStatus("Permiso de orientación denegado.");
           return;
         }
       }
 
-      window.addEventListener("deviceorientation", onOrientation, true);
-      setStatus("Sensores activos. Incliná el celular");
+      if (motionPermission){
+        const p = await DeviceMotionEvent.requestPermission();
+        if (p !== "granted"){
+          setStatus("Permiso de movimiento denegado.");
+          return;
+        }
+      }
+
+      window.removeEventListener("deviceorientation", onOrientation, true);
+      window.removeEventListener("devicemotion", onMotion, true);
+
+      if (hasOrientation) window.addEventListener("deviceorientation", onOrientation, true);
+      if (hasMotion) window.addEventListener("devicemotion", onMotion, true);
+
+      setStatus("Sensores activos. Incliná el celular.");
+
+      setTimeout(() => {
+        const ev = sensorEvents.current;
+        if (ev.orientation === 0 && ev.motion === 0){
+          setStatus("Sensores activados, pero no llegó ningún evento. Puede estar bloqueado por navegador/sistema.");
+        } else if (ev.orientation <= 1 && ev.motion <= 1){
+          setStatus("Llegaron muy pocos eventos. El navegador podría estar congelando sensores.");
+        } else {
+          setStatus(`Sensores OK · orientation: ${ev.orientation} · motion: ${ev.motion} · usando: ${sensorMode.current}`);
+        }
+      }, 2500);
     }catch(e){
       setStatus("Error: "+(e?.message||e));
+      setDebug(e?.stack || String(e));
     }
   }
 
   function onOrientation(e){
-    // usamos BETA para control (eje frontal/trasero)
-    const beta = Number(e.beta||0);
-    const angle = clamp(beta, -60, 60);
-    paddleAngleRef.current = angle;
-    setAngleUI(angle);
-    sendAngle(angle);
+    sensorEvents.current.orientation++;
+    sensorEvents.current.lastOrientationTime = Date.now();
+
+    const alpha = Number(e.alpha ?? 0);
+    const beta = Number(e.beta ?? 0);
+    const gamma = Number(e.gamma ?? 0);
+
+    // Usamos BETA como eje principal, como pediste.
+    applyAngle(beta, "orientation.beta");
+
+    setDebug(
+      `orientation events: ${sensorEvents.current.orientation}\n` +
+      `motion events: ${sensorEvents.current.motion}\n` +
+      `modo usado: ${sensorMode.current}\n` +
+      `alpha: ${alpha.toFixed(2)}\n` +
+      `beta: ${beta.toFixed(2)}\n` +
+      `gamma: ${gamma.toFixed(2)}\n` +
+      `angle enviado: ${paddleAngleRef.current.toFixed(2)}°`
+    );
   }
 
-  // ---------- SCREEN (PC) ----------
+  function onMotion(e){
+    sensorEvents.current.motion++;
+    sensorEvents.current.lastMotionTime = Date.now();
+
+    const acc = e.accelerationIncludingGravity || e.acceleration || {x:0,y:0,z:0};
+    const ax = Number(acc.x ?? 0);
+    const ay = Number(acc.y ?? 0);
+    const az = Number(acc.z ?? 0);
+
+    // Fallback del otro eje: pitch por gravedad.
+    const pitchRad = Math.atan2(ay, Math.sqrt(ax*ax + az*az));
+    const pitchDeg = pitchRad * 180 / Math.PI;
+
+    const now = Date.now();
+    const orientationStale = now - sensorEvents.current.lastOrientationTime > 250;
+
+    if (orientationStale || sensorMode.current === "none"){
+      applyAngle(pitchDeg, "motion.pitch");
+    }
+
+    setDebug(
+      `orientation events: ${sensorEvents.current.orientation}\n` +
+      `motion events: ${sensorEvents.current.motion}\n` +
+      `modo usado: ${sensorMode.current}\n` +
+      `ax: ${ax.toFixed(2)}\n` +
+      `ay: ${ay.toFixed(2)}\n` +
+      `az: ${az.toFixed(2)}\n` +
+      `pitch fallback: ${pitchDeg.toFixed(2)}°\n` +
+      `angle enviado: ${paddleAngleRef.current.toFixed(2)}°`
+    );
+  }
+
   useEffect(() => {
     if (MODE !== "screen") return;
     ballsRef.current = [spawnBall()];
@@ -119,7 +219,6 @@ function App(){
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
     const h = canvas.height;
-
     const dt = Math.min(0.033, (now - lastTimeRef.current) / 1000);
     lastTimeRef.current = now;
 
@@ -133,7 +232,6 @@ function App(){
     const paddleH = 8;
     const angle = paddleAngleRef.current * Math.PI/180;
 
-    // paddle
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
@@ -142,14 +240,12 @@ function App(){
     ctx.fill();
     ctx.restore();
 
-    // balls
     const balls = ballsRef.current;
     for (let i = balls.length-1; i>=0; i--){
       const b = balls[i];
       b.x += b.vx*dt;
       b.y += b.vy*dt;
 
-      // collision en espacio local
       const relX = b.x - cx;
       const relY = b.y - cy;
       const cosA = Math.cos(-angle);
@@ -182,10 +278,9 @@ function App(){
     requestAnimationFrame(loop);
   }
 
-  // ---------- FALLBACK TOUCH (screen o controller) ----------
-  function onDown(e){ dragging.current=true; e.currentTarget.setPointerCapture(e.pointerId); updateFromPointer(e,true);}  
-  function onMove(e){ if(!dragging.current) return; updateFromPointer(e,false);}  
-  function onUp(e){ dragging.current=false; updateFromPointer(e,true);}  
+  function onDown(e){ dragging.current=true; e.currentTarget.setPointerCapture(e.pointerId); updateFromPointer(e,true); }
+  function onMove(e){ if(!dragging.current) return; updateFromPointer(e,false); }
+  function onUp(e){ dragging.current=false; updateFromPointer(e,true); }
 
   function updateFromPointer(e,immediate){
     const rect = e.currentTarget.getBoundingClientRect();
@@ -197,33 +292,39 @@ function App(){
     sendAngle(angle,immediate);
   }
 
-  // ---------- RENDER ----------
-  if (MODE === "controller"){
-    return React.createElement("div", {className:"wrap center"},
-      React.createElement("div", {className:"card"},
-        React.createElement("div", {className:"big"}, "Modo mando"),
-        React.createElement("p", {className:"muted"}, status),
-        React.createElement("button", {onClick:activateSensors}, "Activar sensores"),
-        React.createElement("p", {className:"big"}, angleUI.toFixed(1), "°")
-      ),
-      React.createElement("div", {className:"card"},
-        React.createElement("p", {className:"muted"}, "Fallback: arrastrá horizontalmente"),
-        React.createElement("canvas", {
-          width:400,height:200,
-          onPointerDown:onDown,onPointerMove:onMove,onPointerUp:onUp,onPointerCancel:onUp
-        })
-      )
-    );
-  }
-
-  // SCREEN
   return React.createElement("div", {className:"wrap"},
-    React.createElement("canvas", {
-      ref:canvasRef,
-      width:400,
-      height:300,
-      onPointerDown:onDown,onPointerMove:onMove,onPointerUp:onUp,onPointerCancel:onUp
-    })
+    React.createElement("div", {className:"card center"},
+      React.createElement("div", {className:"big"}, "Modo actual: ", MODE),
+      React.createElement("button", {className:MODE==="screen"?"active":"", onClick:()=>switchMode("screen")}, "Pantalla / PC"),
+      React.createElement("button", {className:MODE==="controller"?"active":"", onClick:()=>switchMode("controller")}, "Mando / Celular")
+    ),
+
+    MODE === "controller"
+      ? React.createElement(React.Fragment, null,
+          React.createElement("div", {className:"card center"},
+            React.createElement("div", {className:"big"}, "Modo mando"),
+            React.createElement("p", {className:"muted"}, status),
+            React.createElement("button", {onClick:activateSensors}, "Activar sensores"),
+            React.createElement("p", {className:"big"}, angleUI.toFixed(1), "°")
+          ),
+          React.createElement("div", {className:"card"},
+            React.createElement("p", {className:"muted"}, "Fallback: arrastrá horizontalmente"),
+            React.createElement("canvas", {
+              width:400,height:160,
+              onPointerDown:onDown,onPointerMove:onMove,onPointerUp:onUp,onPointerCancel:onUp
+            })
+          ),
+          React.createElement("div", {className:"card debug"}, debug)
+        )
+      : React.createElement("div", {className:"card"},
+          React.createElement("canvas", {
+            ref:canvasRef,
+            width:400,
+            height:300,
+            onPointerDown:onDown,onPointerMove:onMove,onPointerUp:onUp,onPointerCancel:onUp
+          }),
+          React.createElement("p", {className:"muted center"}, "Pantalla de juego. Usá el modo mando en el celular.")
+        )
   );
 }
 
