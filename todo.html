@@ -1,153 +1,304 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>To Do List - InstantDB</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
-    h1 { margin-bottom: 4px; }
-    .muted { color: #666; font-size: 14px; }
-    form { display: flex; gap: 8px; margin: 20px 0; }
-    input { padding: 10px; font-size: 16px; flex: 1; }
-    button { padding: 10px 12px; cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; }
-    td, th { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
-    .done { text-decoration: line-through; color: #777; }
-    .actions { white-space: nowrap; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>To Do List + Latencia - InstantDB</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
+  .muted{color:#666;font-size:14px}
+  section{border:1px solid #ddd;border-radius:14px;padding:16px;margin:18px 0}
+  form{display:flex;gap:8px;margin:12px 0}
+  input,button{padding:10px;font-size:16px}
+  input[type=text]{flex:1}
+  table{width:100%;border-collapse:collapse}
+  td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}
+  .done{text-decoration:line-through;color:#777}
+  canvas{width:100%;max-width:420px;height:auto;border:1px solid #ccc;border-radius:12px;touch-action:none;background:#fafafa}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <h1>To Do List</h1>
-  <div id="status" class="muted">Conectando...</div>
+<h1>To Do List + prueba de latencia</h1>
+<div id="status" class="muted">Conectando...</div>
 
+<section>
+  <h2>ABM simple</h2>
   <form id="form">
-    <input id="text" placeholder="Nueva tarea..." autocomplete="off" />
+    <input id="text" type="text" placeholder="Nueva tarea..." autocomplete="off" />
     <button>Agregar</button>
   </form>
-
   <table>
-    <thead>
-      <tr>
-        <th>Hecha</th>
-        <th>Tarea</th>
-        <th>Creada</th>
-        <th></th>
-      </tr>
-    </thead>
+    <thead><tr><th>Hecha</th><th>Tarea</th><th></th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
+</section>
 
-  <script type="module">
-    import { init, id } from "https://esm.sh/@instantdb/core";
+<section>
+  <h2>Prueba de sincronización</h2>
+  <div class="muted" id="latencyInfo">Esperando datos...</div>
 
-    const APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
+  <div class="grid">
+    <div>
+      <label>Slider sincronizado: <b id="sliderValue">50</b></label><br>
+      <input id="slider" type="range" min="0" max="100" value="50" style="width:100%">
+      <p class="muted">Movelo en celu/PC y mirá el otro dispositivo.</p>
+    </div>
 
-    const db = init({ appId: APP_ID });
+    <div>
+      <canvas id="cube" width="420" height="320"></canvas>
+      <p class="muted">Arrastrá el cubo con mouse o dedo.</p>
+    </div>
+  </div>
+</section>
 
-    const status = document.querySelector("#status");
-    const form = document.querySelector("#form");
-    const text = document.querySelector("#text");
-    const rows = document.querySelector("#rows");
+<script type="module">
+import { init, id } from "https://esm.sh/@instantdb/core";
 
-    let todos = [];
+const APP_ID = "PEGÁ_ACÁ_TU_APP_ID";
+const db = init({ appId: APP_ID });
 
-    db.subscribeQuery({ todos: {} }, (resp) => {
-      if (resp.error) {
-        status.textContent = "Error: " + resp.error.message;
-        return;
-      }
+const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.randomUUID());
+const SHARED_ID = "shared-latency-test-state";
 
-      todos = (resp.data?.todos ?? [])
-        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+const status = document.querySelector("#status");
+const form = document.querySelector("#form");
+const text = document.querySelector("#text");
+const rows = document.querySelector("#rows");
 
-      status.textContent = `Sincronizado · ${todos.length} tarea(s)`;
-      render();
-    });
+const slider = document.querySelector("#slider");
+const sliderValue = document.querySelector("#sliderValue");
+const latencyInfo = document.querySelector("#latencyInfo");
+const canvas = document.querySelector("#cube");
+const ctx = canvas.getContext("2d");
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+let todos = [];
+let remoteState = {
+  slider: 50,
+  rotX: -0.4,
+  rotY: 0.6,
+  sentAt: Date.now(),
+  sender: "init"
+};
 
-      const value = text.value.trim();
-      if (!value) return;
+let localRotX = remoteState.rotX;
+let localRotY = remoteState.rotY;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
 
-      await db.transact(
-        db.tx.todos[id()].create({
-          text: value,
-          done: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        })
-      );
+/* ---------- SUSCRIPCIÓN GENERAL ---------- */
 
-      text.value = "";
-      text.focus();
-    });
+db.subscribeQuery({ todos: {}, syncStates: {} }, (resp) => {
+  if (resp.error) {
+    status.textContent = "Error: " + resp.error.message;
+    return;
+  }
 
-    function render() {
-      rows.innerHTML = "";
+  todos = (resp.data?.todos ?? []).sort((a,b)=>(b.createdAt??0)-(a.createdAt??0));
 
-      for (const todo of todos) {
-        const tr = document.createElement("tr");
+  const state = (resp.data?.syncStates ?? []).find(x => x.id === SHARED_ID);
+  if (state) applyRemoteState(state);
 
-        tr.innerHTML = `
-          <td>
-            <input type="checkbox" ${todo.done ? "checked" : ""} data-action="toggle">
-          </td>
-          <td class="${todo.done ? "done" : ""}">${escapeHtml(todo.text ?? "")}</td>
-          <td>${todo.createdAt ? new Date(todo.createdAt).toLocaleString() : "-"}</td>
-          <td class="actions">
-            <button data-action="edit">Editar</button>
-            <button data-action="delete">Borrar</button>
-          </td>
-        `;
+  status.textContent = `Sincronizado · ${todos.length} tarea(s)`;
+  renderTodos();
+});
 
-        tr.querySelector('[data-action="toggle"]').onclick = () => toggleTodo(todo);
-        tr.querySelector('[data-action="edit"]').onclick = () => editTodo(todo);
-        tr.querySelector('[data-action="delete"]').onclick = () => deleteTodo(todo);
+/* ---------- TODO ---------- */
 
-        rows.appendChild(tr);
-      }
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const value = text.value.trim();
+  if (!value) return;
+
+  await db.transact(db.tx.todos[id()].create({
+    text: value,
+    done: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }));
+
+  text.value = "";
+});
+
+function renderTodos() {
+  rows.innerHTML = "";
+  for (const todo of todos) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" ${todo.done ? "checked" : ""}></td>
+      <td class="${todo.done ? "done" : ""}">${escapeHtml(todo.text ?? "")}</td>
+      <td>
+        <button>Editar</button>
+        <button>Borrar</button>
+      </td>
+    `;
+
+    tr.children[0].querySelector("input").onclick = () =>
+      db.transact(db.tx.todos[todo.id].update({ done: !todo.done, updatedAt: Date.now() }));
+
+    tr.children[2].children[0].onclick = () => {
+      const nuevo = prompt("Editar tarea:", todo.text ?? "");
+      if (nuevo?.trim()) db.transact(db.tx.todos[todo.id].update({
+        text: nuevo.trim(),
+        updatedAt: Date.now()
+      }));
+    };
+
+    tr.children[2].children[1].onclick = () => {
+      if (confirm("¿Borrar?")) db.transact(db.tx.todos[todo.id].delete());
+    };
+
+    rows.appendChild(tr);
+  }
+}
+
+/* ---------- SYNC STATE ---------- */
+
+function applyRemoteState(state) {
+  remoteState = state;
+
+  if (state.sender !== CLIENT_ID) {
+    slider.value = state.slider ?? 50;
+    sliderValue.textContent = slider.value;
+
+    localRotX = state.rotX ?? localRotX;
+    localRotY = state.rotY ?? localRotY;
+
+    const lag = Date.now() - (state.sentAt ?? Date.now());
+    latencyInfo.textContent =
+      `Última actualización remota: ~${lag} ms · origen: ${state.sender?.slice(0,8) ?? "?"}`;
+  } else {
+    latencyInfo.textContent = "Último cambio enviado por este dispositivo.";
+  }
+
+  drawCube();
+}
+
+const publishState = throttle(() => {
+  db.transact(db.tx.syncStates[SHARED_ID].update({
+    slider: Number(slider.value),
+    rotX: localRotX,
+    rotY: localRotY,
+    sentAt: Date.now(),
+    sender: CLIENT_ID
+  }));
+}, 50);
+
+slider.addEventListener("input", () => {
+  sliderValue.textContent = slider.value;
+  publishState();
+});
+
+/* ---------- CUBO ---------- */
+
+canvas.addEventListener("pointerdown", e => {
+  dragging = true;
+  canvas.setPointerCapture(e.pointerId);
+  lastX = e.clientX;
+  lastY = e.clientY;
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!dragging) return;
+
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX;
+  lastY = e.clientY;
+
+  localRotY += dx * 0.01;
+  localRotX += dy * 0.01;
+
+  drawCube();
+  publishState();
+});
+
+canvas.addEventListener("pointerup", () => dragging = false);
+canvas.addEventListener("pointercancel", () => dragging = false);
+
+function drawCube() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const s = 80;
+  const points = [
+    [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+    [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
+  ].map(([x,y,z]) => project(rotate([x*s,y*s,z*s])));
+
+  const edges = [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7]
+  ];
+
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#222";
+  for (const [a,b] of edges) {
+    ctx.beginPath();
+    ctx.moveTo(points[a].x, points[a].y);
+    ctx.lineTo(points[b].x, points[b].y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#222";
+  ctx.font = "14px system-ui";
+  ctx.fillText("Arrastrame", 16, 26);
+}
+
+function rotate([x,y,z]) {
+  const cx = Math.cos(localRotX), sx = Math.sin(localRotX);
+  const cy = Math.cos(localRotY), sy = Math.sin(localRotY);
+
+  let y1 = y * cx - z * sx;
+  let z1 = y * sx + z * cx;
+  let x2 = x * cy + z1 * sy;
+  let z2 = -x * sy + z1 * cy;
+
+  return [x2, y1, z2];
+}
+
+function project([x,y,z]) {
+  const distance = 420;
+  const scale = distance / (distance - z);
+  return {
+    x: canvas.width / 2 + x * scale,
+    y: canvas.height / 2 + y * scale
+  };
+}
+
+/* ---------- UTILS ---------- */
+
+function throttle(fn, delay) {
+  let last = 0;
+  let timer = null;
+
+  return function() {
+    const now = Date.now();
+    const remaining = delay - (now - last);
+
+    if (remaining <= 0) {
+      last = now;
+      fn();
+    } else {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        last = Date.now();
+        fn();
+      }, remaining);
     }
+  };
+}
 
-    async function toggleTodo(todo) {
-      await db.transact(
-        db.tx.todos[todo.id].update({
-          done: !todo.done,
-          updatedAt: Date.now()
-        })
-      );
-    }
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+  }[c]));
+}
 
-    async function editTodo(todo) {
-      const newText = prompt("Editar tarea:", todo.text ?? "");
-      if (newText === null) return;
-
-      const clean = newText.trim();
-      if (!clean) return;
-
-      await db.transact(
-        db.tx.todos[todo.id].update({
-          text: clean,
-          updatedAt: Date.now()
-        })
-      );
-    }
-
-    async function deleteTodo(todo) {
-      if (!confirm("¿Borrar esta tarea?")) return;
-      await db.transact(db.tx.todos[todo.id].delete());
-    }
-
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-      }[c]));
-    }
-  </script>
+drawCube();
+publishState();
+</script>
 </body>
 </html>
