@@ -23,7 +23,9 @@ button:active{transform:translateY(1px)}
 // CONFIG
 // ============================
 window.APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
-const MODE = "screen"; // "screen" (PC) o "controller" (celular)
+// modo por URL: ?mode=controller o ?mode=screen
+const urlParams = new URLSearchParams(window.location.search);
+const MODE = urlParams.get("mode") || "screen";
 </script>
 
 <div id="root">Cargando...</div>
