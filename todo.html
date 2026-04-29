@@ -57,6 +57,20 @@ function App(){
   const sensorEvents = useRef({orientation:0,motion:0,lastOrientationTime:0,lastMotionTime:0});
   const sensorMode = useRef("none");
 
+  // balls state (no React state for perf)
+  const ballsRef = useRef([]);
+  const lastTimeRef = useRef(performance.now());
+
+  useEffect(() => {
+    // init balls
+    const balls = [];
+    const N = 6;
+    for(let i=0;i<N;i++) balls.push(spawnBall());
+    ballsRef.current = balls;
+    lastTimeRef.current = performance.now();
+    requestAnimationFrame(loop);
+  }, []);
+
   db.rooms.useTopicEffect(room, "move", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
 
@@ -84,8 +98,6 @@ function App(){
     }
   });
 
-  useEffect(()=>drawPaddle(canvasRef.current, paddleAngle), [paddleAngle]);
-
   function publish(payload){
     publishMove({
       ...payload,
@@ -94,26 +106,11 @@ function App(){
     });
   }
 
-  function sendSlider(){
-    const now = Date.now();
-    if (now - lastSend.current < 33) return;
-    lastSend.current = now;
-
-    publish({
-      type: "slider",
-      slider: sliderRef.current
-    });
-  }
-
   function sendPaddle(angle, immediate=false){
     const now = Date.now();
     if (!immediate && now - lastSend.current < 33) return;
     lastSend.current = now;
-
-    publish({
-      type: "paddle",
-      angle
-    });
+    publish({ type: "paddle", angle });
   }
 
   function applyPaddleAngle(angle, sourceLabel){
@@ -128,18 +125,14 @@ function App(){
     const v = Number(e.target.value);
     sliderRef.current = v;
     setSlider(v);
-    sendSlider();
+    publish({ type: "slider", slider: v });
   }
 
   function onTextArea(e){
     const value = e.target.value;
     textAreaRef.current = value;
     setTextArea(value);
-
-    publish({
-      type: "text",
-      text: value
-    });
+    publish({ type: "text", text: value });
   }
 
   async function activateSensors(){
@@ -158,7 +151,7 @@ function App(){
       );
 
       if (!secure) {
-        setSensorStatus("Esta página no está en contexto seguro. Probalo en GitHub Pages/HTTPS, no en file://.");
+        setSensorStatus("No es HTTPS. Probalo en GitHub Pages/HTTPS.");
         return;
       }
 
@@ -184,35 +177,25 @@ function App(){
       if (hasOrientation) window.addEventListener("deviceorientation", onDeviceOrientation, true);
       if (hasMotion) window.addEventListener("devicemotion", onDeviceMotion, true);
 
-      setSensorStatus("Sensores activados. Mové/incliná el celular.");
-      setSensorInfo("Usando deviceorientation y devicemotion en paralelo. El sistema toma el dato que cambie mejor.");
-
-      setTimeout(() => {
-        const ev = sensorEvents.current;
-        if (ev.orientation === 0 && ev.motion === 0) {
-          setSensorStatus("Sensores activados, pero no llegó ningún evento. Revisá permisos del navegador/sistema.");
-        } else if (ev.orientation <= 1 && ev.motion <= 1) {
-          setSensorStatus("Llegó solo uno o pocos eventos. El navegador podría estar congelando sensores.");
-        } else {
-          setSensorStatus(`Sensores activos · orientation: ${ev.orientation} · motion: ${ev.motion} · modo: ${sensorMode.current}`);
-        }
-      }, 2500);
+      setSensorStatus("Sensores activados. Incliná el celular.");
+      setSensorInfo("Usando BETA (eje frontal/trasero) para la paleta. Fallback a gravedad si hace falta.");
     }catch(err){
       setSensorStatus("Error activando sensor: " + (err?.message || String(err)));
     }
   }
 
+  // 👉 CAMBIO: usar BETA (no gamma)
   function onDeviceOrientation(e){
     sensorEvents.current.orientation++;
     sensorEvents.current.lastOrientationTime = Date.now();
 
-    const gamma = Number(e.gamma ?? 0); // izquierda/derecha en vertical
-    const beta = Number(e.beta ?? 0);
+    const beta = Number(e.beta ?? 0); // eje frontal/trasero
+    const gamma = Number(e.gamma ?? 0);
     const alpha = Number(e.alpha ?? 0);
 
-    // Si gamma está disponible y cambia, es el dato más directo para nuestro paddle.
-    const angle = clamp(gamma, -60, 60);
-    applyPaddleAngle(angle, "deviceorientation.gamma");
+    // usamos beta para el ángulo de la paleta
+    const angle = clamp(beta, -60, 60);
+    applyPaddleAngle(angle, "deviceorientation.beta");
 
     setSensorInfo(`orientation → alpha: ${alpha.toFixed(1)}° · beta: ${beta.toFixed(1)}° · gamma: ${gamma.toFixed(1)}°`);
     updateDebug(alpha,beta,gamma,null,null,null);
@@ -227,18 +210,14 @@ function App(){
     const ay = Number(acc.y ?? 0);
     const az = Number(acc.z ?? 0);
 
-    // Fallback por gravedad: estimación de roll/inclinación izquierda-derecha.
-    // En muchos Android, x cambia bastante al inclinar el celular lateralmente.
-    const rollRad = Math.atan2(ax, Math.sqrt(ay*ay + az*az));
-    const rollDeg = rollRad * 180 / Math.PI;
+    const pitchRad = Math.atan2(ay, Math.sqrt(ax*ax + az*az));
+    const pitchDeg = pitchRad * 180 / Math.PI;
 
-    // Solo usamos motion como fuente principal si orientation no está llegando fluido
-    // o si el modo actual todavía no se estableció.
     const now = Date.now();
     const orientationStale = now - sensorEvents.current.lastOrientationTime > 250;
     if (orientationStale || sensorMode.current === "none") {
-      applyPaddleAngle(clamp(rollDeg, -60, 60), "devicemotion.gravity");
-      setSensorInfo(`motion → ax: ${ax.toFixed(2)} · ay: ${ay.toFixed(2)} · az: ${az.toFixed(2)} · roll: ${rollDeg.toFixed(1)}°`);
+      applyPaddleAngle(clamp(pitchDeg, -60, 60), "devicemotion.pitch");
+      setSensorInfo(`motion → ax:${ax.toFixed(2)} ay:${ay.toFixed(2)} az:${az.toFixed(2)} pitch:${pitchDeg.toFixed(1)}°`);
     }
 
     updateDebug(null,null,null,ax,ay,az);
@@ -247,21 +226,13 @@ function App(){
   function updateDebug(alpha,beta,gamma,ax,ay,az){
     const ev = sensorEvents.current;
     setDebug(
-      `secureContext: ${window.isSecureContext}\n` +
-      `eventos orientation: ${ev.orientation}\n` +
-      `eventos motion: ${ev.motion}\n` +
-      `modo usado: ${sensorMode.current}\n` +
+      `orientation events: ${ev.orientation}\n` +
+      `motion events: ${ev.motion}\n` +
+      `mode: ${sensorMode.current}\n` +
       `paddle: ${paddleAngleRef.current.toFixed(2)}°\n` +
-      `alpha: ${fmt(alpha)} · beta: ${fmt(beta)} · gamma: ${fmt(gamma)}\n` +
-      `ax: ${fmt(ax)} · ay: ${fmt(ay)} · az: ${fmt(az)}`
+      `alpha:${fmt(alpha)} beta:${fmt(beta)} gamma:${fmt(gamma)}\n` +
+      `ax:${fmt(ax)} ay:${fmt(ay)} az:${fmt(az)}`
     );
-  }
-
-  function calibrateZero(){
-    paddleAngleRef.current = 0;
-    setPaddleAngle(0);
-    sendPaddle(0, true);
-    setSensorInfo("Paleta centrada manualmente. Ahora incliná el celular para probar cambios.");
   }
 
   function onCanvasPointerDown(e){
@@ -291,6 +262,71 @@ function App(){
     sendPaddle(angle, immediate);
   }
 
+  function loop(now){
+    const canvas = canvasRef.current;
+    if (!canvas) return requestAnimationFrame(loop);
+
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const dt = Math.min(0.033, (now - lastTimeRef.current) / 1000);
+    lastTimeRef.current = now;
+
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0,0,w,h);
+
+    // paddle
+    const paddleW = 120;
+    const paddleH = 8;
+    const cx = w/2;
+    const cy = h - 35;
+    const angle = paddleAngleRef.current * Math.PI / 180;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.fillStyle = "#3b43ff";
+    roundedRect(ctx, -paddleW/2, -paddleH/2, paddleW, paddleH, 5);
+    ctx.fill();
+    ctx.restore();
+
+    // balls
+    const balls = ballsRef.current;
+    for (let b of balls){
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+
+      // collision paddle (simple)
+      const dx = b.x - cx;
+      const dy = b.y - cy;
+      const distY = Math.abs(dy);
+
+      if (distY < 10 && Math.abs(dx) < paddleW/2){
+        const normalAngle = paddleAngleRef.current * Math.PI/180;
+        const speed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+
+        // reflect based on paddle angle
+        b.vx = speed * Math.sin(normalAngle);
+        b.vy = -Math.abs(speed * Math.cos(normalAngle));
+        b.y = cy - 10;
+      }
+
+      // reset if out
+      if (b.y > h + 20){
+        Object.assign(b, spawnBall());
+      }
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 6, 0, Math.PI*2);
+      ctx.fillStyle = "#222";
+      ctx.fill();
+    }
+
+    requestAnimationFrame(loop);
+  }
+
   return React.createElement("div", null,
     React.createElement("div", {className:"card"},
       React.createElement("p", {className:"muted"}, lat),
@@ -298,75 +334,35 @@ function App(){
       React.createElement("input", {type:"range", min:0, max:100, value:slider, onInput:onSlider})
     ),
     React.createElement("div", {className:"card"},
-      React.createElement("p", {className:"muted"}, "Textarea colaborativo por topic. Si dos dispositivos escriben a la vez, gana el último mensaje recibido."),
       React.createElement("textarea", {
         value:textArea,
-        onChange:onTextArea,
-        placeholder:"Escribí acá y mirá cómo aparece en el otro dispositivo..."
+        onChange:onTextArea
       })
     ),
     React.createElement("div", {className:"card"},
-      React.createElement("p", null,
-        "Paleta por inclinación ",
-        React.createElement("span", {className:"badge"}, paddleAngle.toFixed(1), "°")
-      ),
-      React.createElement("p", {className:"muted"}, sensorInfo),
-      React.createElement("p", {className:"muted"}, sensorStatus),
       React.createElement("button", {onClick:activateSensors}, "Activar sensores"),
-      React.createElement("button", {onClick:calibrateZero}, "Centrar paleta"),
-      React.createElement("br"),
-      React.createElement("br"),
       React.createElement("canvas", {
         ref:canvasRef,
         width:400,
         height:300,
         onPointerDown:onCanvasPointerDown,
         onPointerMove:onCanvasPointerMove,
-        onPointerUp:onCanvasPointerUp,
-        onPointerCancel:onCanvasPointerUp
+        onPointerUp:onCanvasPointerUp
       }),
-      React.createElement("p", {className:"muted"}, "Fallback: también podés arrastrar horizontalmente sobre el canvas para simular la inclinación."),
       React.createElement("div", {className:"debug"}, debug)
     )
   );
 }
 
-function drawPaddle(canvas, angleDeg){
-  if(!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width;
-  const h = canvas.height;
-
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0,0,w,h);
-
-  const paddleW = 120;
-  const paddleH = 8;
-  const cx = w / 2;
-  const cy = h - 35;
-  const r = 5;
-  const angle = angleDeg * Math.PI / 180;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-
-  const grad = ctx.createLinearGradient(-paddleW/2,0,paddleW/2,0);
-  grad.addColorStop(0,"#3036d8");
-  grad.addColorStop(0.5,"#4a4ff0");
-  grad.addColorStop(1,"#3036d8");
-  ctx.fillStyle = grad;
-
-  roundedRect(ctx, -paddleW/2, -paddleH/2, paddleW, paddleH, r);
-  ctx.fill();
-
-  ctx.restore();
-
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.font = "13px system-ui";
-  ctx.textAlign = "center";
-  ctx.fillText(`${angleDeg.toFixed(1)}°`, cx, h - 12);
+function spawnBall(){
+  const speed = 160;
+  const angle = (Math.random()*0.6 - 0.3);
+  return {
+    x: 200,
+    y: 40,
+    vx: Math.sin(angle)*speed,
+    vy: speed
+  };
 }
 
 function roundedRect(ctx, x, y, w, h, r){
@@ -383,28 +379,18 @@ function roundedRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-function clamp(n, min, max){
-  return Math.max(min, Math.min(max, n));
-}
-
-function fmt(v){
-  return v === null || v === undefined || Number.isNaN(Number(v)) ? "-" : Number(v).toFixed(2);
-}
+function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+function fmt(v){ return v==null?"-":Number(v).toFixed(2); }
 
 function showError(err){
   const el=document.getElementById("error");
   el.style.display="block";
   el.textContent=err?.stack || err?.message || String(err);
-  document.getElementById("root").textContent="Error cargando app.";
 }
 
 try{
   createRoot(document.getElementById("root")).render(React.createElement(App));
-}catch(err){
-  showError(err);
-}
-window.addEventListener("error", e=>showError(e.error || e.message));
-window.addEventListener("unhandledrejection", e=>showError(e.reason));
+}catch(err){ showError(err); }
 </script>
 </body>
 </html>
