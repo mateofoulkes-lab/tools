@@ -63,10 +63,7 @@ function App(){
 
   useEffect(() => {
     // init balls
-    const balls = [];
-    const N = 6;
-    for(let i=0;i<N;i++) balls.push(spawnBall());
-    ballsRef.current = balls;
+    ballsRef.current = [spawnBall()];
     lastTimeRef.current = performance.now();
     requestAnimationFrame(loop);
   }, []);
@@ -294,7 +291,9 @@ function App(){
 
     // balls
     const balls = ballsRef.current;
-    for (let b of balls){
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
@@ -303,19 +302,20 @@ function App(){
       const dy = b.y - cy;
       const distY = Math.abs(dy);
 
-      if (distY < 10 && Math.abs(dx) < paddleW/2){
+      if (distY < 10 && Math.abs(dx) < paddleW/2 && b.vy > 0){
         const normalAngle = paddleAngleRef.current * Math.PI/180;
         const speed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
 
-        // reflect based on paddle angle
         b.vx = speed * Math.sin(normalAngle);
         b.vy = -Math.abs(speed * Math.cos(normalAngle));
         b.y = cy - 10;
       }
 
-      // reset if out
-      if (b.y > h + 20){
-        Object.assign(b, spawnBall());
+      // delete and regenerate if out of canvas
+      if (b.y > h + 20 || b.x < -20 || b.x > w + 20){
+        balls.splice(i, 1);
+        balls.push(spawnBall());
+        continue;
       }
 
       ctx.beginPath();
