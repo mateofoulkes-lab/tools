@@ -60,7 +60,18 @@ function App(){
   const [error,setError] = useState("");
   const [invertX,setInvertX] = useStoredBool("cubeInvertX", true);
   const [invertY,setInvertY] = useStoredBool("cubeInvertY", true);
-  const [smooth,setSmooth] = useStoredNumber("cubeSmooth", 0.25);
+  const [smooth,setSmooth] = useStoredNumber("cubeSmooth", 0.65);
+  const [deadzone,setDeadzone] = useStoredNumber("cubeDeadzone", 1.5);
+
+  const invertXRef = useRef(invertX);
+  const invertYRef = useRef(invertY);
+  const smoothRef = useRef(smooth);
+  const deadzoneRef = useRef(deadzone);
+
+  useEffect(()=>{ invertXRef.current = invertX; }, [invertX]);
+  useEffect(()=>{ invertYRef.current = invertY; }, [invertY]);
+  useEffect(()=>{ smoothRef.current = smooth; }, [smooth]);
+  useEffect(()=>{ deadzoneRef.current = deadzone; }, [deadzone]);
 
   db.rooms.useTopicEffect(room, "rotation", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
@@ -140,19 +151,29 @@ function App(){
   }
 
   function applyAxisOptions(rawX, rawY){
-    const sx = invertX ? -1 : 1;
-    const sy = invertY ? -1 : 1;
-    const target = {
+    const sx = invertXRef.current ? -1 : 1;
+    const sy = invertYRef.current ? -1 : 1;
+
+    let target = {
       x: clamp(rawX * sx, -Math.PI/2, Math.PI/2),
       z: clamp(rawY * sy, -Math.PI/2, Math.PI/2)
     };
 
-    const alpha = clamp(Number(smooth), 0, 0.95);
     const prev = smoothedRotRef.current;
+    const deadzoneRad = degToRad(Number(deadzoneRef.current || 0));
+
+    // Zona muerta: si el sensor tiembla menos que este umbral,
+    // mantenemos el valor anterior en vez de perseguir cada microcambio.
+    if (Math.abs(target.x - prev.x) < deadzoneRad) target.x = prev.x;
+    if (Math.abs(target.z - prev.z) < deadzoneRad) target.z = prev.z;
+
+    // Suavizado exponencial: más alto = más estable pero más lento.
+    const alpha = clamp(Number(smoothRef.current), 0, 0.95);
     const next = {
       x: prev.x + (target.x - prev.x) * (1 - alpha),
       z: prev.z + (target.z - prev.z) * (1 - alpha)
     };
+
     smoothedRotRef.current = next;
     return next;
   }
@@ -256,7 +277,18 @@ function App(){
             onChange:e=>setSmooth(Number(e.target.value))
           })
         ),
-        React.createElement("div", {className:"hint"}, "0 = respuesta inmediata · 0.95 = muy suave/lento"),
+        React.createElement("label", null,
+          "Zona muerta: ", Number(deadzone).toFixed(1), "°",
+          React.createElement("input", {
+            type:"range",
+            min:"0",
+            max:"6",
+            step:"0.5",
+            value:deadzone,
+            onChange:e=>setDeadzone(Number(e.target.value))
+          })
+        ),
+        React.createElement("div", {className:"hint"}, "Suavizado alto = más estable/lento · Zona muerta ignora temblores chicos"),
         error ? React.createElement("div", {className:"error"}, error) : null
       )
     );
