@@ -8,10 +8,13 @@
 body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 16px}
 #error{white-space:pre-wrap;color:#b00020;background:#ffecec;padding:12px;border-radius:10px;display:none}
 .card{border:1px solid #ddd;border-radius:14px;padding:16px;margin:16px 0}
-canvas{border:1px solid #ccc;border-radius:12px;touch-action:none;max-width:100%;background:#fafafa}
+canvas{border:1px solid #ddd;border-radius:12px;touch-action:none;max-width:100%;background:#fff;display:block;margin:auto}
 input{width:100%}
 textarea{width:100%;min-height:140px;padding:10px;font-size:16px;box-sizing:border-box;resize:vertical;font-family:system-ui,sans-serif}
+button{padding:10px 14px;font-size:16px;border:1px solid #bbb;border-radius:10px;background:#f7f7f7;cursor:pointer}
+button:active{transform:translateY(1px)}
 .muted{color:#666;font-size:14px}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef0ff;color:#3036b8;font-size:13px;margin-left:6px}
 </style>
 </head>
 <body>
@@ -37,17 +40,18 @@ function App(){
   const publishMove = db.rooms.usePublishTopic(room, "move");
 
   const [slider,setSlider] = useState(50);
-  const [rot,setRot] = useState({x:-0.3,y:0.6});
   const [lat,setLat] = useState("Esperando movimiento remoto...");
   const [textArea,setTextArea] = useState("");
+  const [paddleAngle,setPaddleAngle] = useState(0);
+  const [sensorStatus,setSensorStatus] = useState("Sensor no iniciado");
+  const [sensorInfo,setSensorInfo] = useState("Abrí esta misma página en el celular y tocá ‘Activar inclinación’. En la PC deberías ver moverse la paleta.");
 
   const canvasRef = useRef(null);
-  const dragging = useRef(false);
-  const last = useRef({x:0,y:0});
-  const rotRef = useRef(rot);
   const sliderRef = useRef(slider);
   const textAreaRef = useRef("");
+  const paddleAngleRef = useRef(0);
   const lastSend = useRef(0);
+  const draggingPaddle = useRef(false);
 
   db.rooms.useTopicEffect(room, "move", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
@@ -60,31 +64,51 @@ function App(){
       return;
     }
 
-    const r = {x:Number(msg.rotX), y:Number(msg.rotY)};
-    const s = Number(msg.slider);
+    if (msg.type === "paddle") {
+      const incomingAngle = clamp(Number(msg.angle ?? 0), -60, 60);
+      paddleAngleRef.current = incomingAngle;
+      setPaddleAngle(incomingAngle);
+      setLat("Latencia paleta aprox: " + (Date.now() - Number(msg.sentAt)) + " ms");
+      return;
+    }
 
-    rotRef.current = r;
-    sliderRef.current = s;
-
-    setRot(r);
-    setSlider(s);
-    setLat("Latencia topic aprox: " + (Date.now() - Number(msg.sentAt)) + " ms");
+    if (msg.type === "slider") {
+      const s = Number(msg.slider);
+      sliderRef.current = s;
+      setSlider(s);
+      setLat("Latencia slider aprox: " + (Date.now() - Number(msg.sentAt)) + " ms");
+    }
   });
 
-  useEffect(()=>draw(canvasRef.current, rot.x, rot.y), [rot]);
+  useEffect(()=>drawPaddle(canvasRef.current, paddleAngle), [paddleAngle]);
 
-  function send(){
+  function publish(payload){
+    publishMove({
+      ...payload,
+      clientId: CLIENT_ID,
+      sentAt: Date.now()
+    });
+  }
+
+  function sendSlider(){
     const now = Date.now();
     if (now - lastSend.current < 33) return;
     lastSend.current = now;
 
-    publishMove({
-      type: "move",
-      clientId: CLIENT_ID,
-      slider: sliderRef.current,
-      rotX: rotRef.current.x,
-      rotY: rotRef.current.y,
-      sentAt: Date.now()
+    publish({
+      type: "slider",
+      slider: sliderRef.current
+    });
+  }
+
+  function sendPaddle(angle, immediate=false){
+    const now = Date.now();
+    if (!immediate && now - lastSend.current < 33) return;
+    lastSend.current = now;
+
+    publish({
+      type: "paddle",
+      angle
     });
   }
 
@@ -92,7 +116,7 @@ function App(){
     const v = Number(e.target.value);
     sliderRef.current = v;
     setSlider(v);
-    send();
+    sendSlider();
   }
 
   function onTextArea(e){
@@ -100,40 +124,73 @@ function App(){
     textAreaRef.current = value;
     setTextArea(value);
 
-    publishMove({
+    publish({
       type: "text",
-      clientId: CLIENT_ID,
-      text: value,
-      sentAt: Date.now()
+      text: value
     });
   }
 
-  function down(e){
-    dragging.current = true;
-    last.current = {x:e.clientX,y:e.clientY};
+  async function activateTilt(){
+    try{
+      if (!window.DeviceOrientationEvent) {
+        setSensorStatus("Este navegador no expone DeviceOrientationEvent.");
+        return;
+      }
+
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission !== "granted") {
+          setSensorStatus("Permiso de inclinación denegado.");
+          return;
+        }
+      }
+
+      window.addEventListener("deviceorientation", onDeviceOrientation, true);
+      setSensorStatus("Inclinación activada");
+      setSensorInfo("Mové/incliná el celular de izquierda a derecha. La paleta debería copiar esa inclinación acá y en la PC.");
+    }catch(err){
+      setSensorStatus("Error activando sensor: " + (err?.message || String(err)));
+    }
+  }
+
+  function onDeviceOrientation(e){
+    // En modo vertical, gamma suele representar inclinación izquierda/derecha.
+    // Lo limitamos para que no se vuelva inmanejable.
+    const gamma = Number(e.gamma ?? 0);
+    const beta = Number(e.beta ?? 0);
+    const angle = clamp(gamma, -60, 60);
+
+    paddleAngleRef.current = angle;
+    setPaddleAngle(angle);
+    setSensorInfo(`gamma: ${gamma.toFixed(1)}° · beta: ${beta.toFixed(1)}° · paleta: ${angle.toFixed(1)}°`);
+    sendPaddle(angle);
+  }
+
+  function onCanvasPointerDown(e){
+    draggingPaddle.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
+    updatePaddleFromPointer(e, true);
   }
 
-  function move(e){
-    if(!dragging.current) return;
-
-    const dx = e.clientX - last.current.x;
-    const dy = e.clientY - last.current.y;
-    last.current = {x:e.clientX,y:e.clientY};
-
-    const r = {
-      x: rotRef.current.x + dy * 0.01,
-      y: rotRef.current.y + dx * 0.01
-    };
-
-    rotRef.current = r;
-    setRot(r);
-    send();
+  function onCanvasPointerMove(e){
+    if (!draggingPaddle.current) return;
+    updatePaddleFromPointer(e, false);
   }
 
-  function up(){
-    dragging.current = false;
-    send();
+  function onCanvasPointerUp(e){
+    draggingPaddle.current = false;
+    updatePaddleFromPointer(e, true);
+  }
+
+  function updatePaddleFromPointer(e, immediate){
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const normalized = (x / rect.width) * 2 - 1;
+    const angle = clamp(normalized * 60, -60, 60);
+
+    paddleAngleRef.current = angle;
+    setPaddleAngle(angle);
+    sendPaddle(angle, immediate);
   }
 
   return React.createElement("div", null,
@@ -151,63 +208,87 @@ function App(){
       })
     ),
     React.createElement("div", {className:"card"},
+      React.createElement("p", null,
+        "Paleta por inclinación ",
+        React.createElement("span", {className:"badge"}, paddleAngle.toFixed(1), "°")
+      ),
+      React.createElement("p", {className:"muted"}, sensorInfo),
+      React.createElement("p", {className:"muted"}, sensorStatus),
+      React.createElement("button", {onClick:activateTilt}, "Activar inclinación"),
+      React.createElement("br"),
+      React.createElement("br"),
       React.createElement("canvas", {
         ref:canvasRef,
         width:400,
         height:300,
-        onPointerDown:down,
-        onPointerMove:move,
-        onPointerUp:up,
-        onPointerCancel:up
-      })
+        onPointerDown:onCanvasPointerDown,
+        onPointerMove:onCanvasPointerMove,
+        onPointerUp:onCanvasPointerUp,
+        onPointerCancel:onCanvasPointerUp
+      }),
+      React.createElement("p", {className:"muted"}, "Fallback: también podés arrastrar horizontalmente sobre el canvas para simular la inclinación.")
     )
   );
 }
 
-function draw(canvas, rx, ry){
+function drawPaddle(canvas, angleDeg){
   if(!canvas) return;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0,0,400,300);
+  const w = canvas.width;
+  const h = canvas.height;
 
-  const size=80;
-  const pts=[
-    [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
-    [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
-  ].map(p=>project(rotate(p.map(v=>v*size),rx,ry)));
+  ctx.clearRect(0,0,w,h);
 
-  const edges=[
-    [0,1],[1,2],[2,3],[3,0],
-    [4,5],[5,6],[6,7],[7,4],
-    [0,4],[1,5],[2,6],[3,7]
-  ];
+  // Fondo blanco limpio, como la referencia.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,w,h);
 
-  ctx.lineWidth=3;
-  ctx.strokeStyle="#222";
+  // Línea/paleta inferior.
+  const paddleW = 120;
+  const paddleH = 8;
+  const cx = w / 2;
+  const cy = h - 35;
+  const r = 5;
+  const angle = angleDeg * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  const grad = ctx.createLinearGradient(-paddleW/2,0,paddleW/2,0);
+  grad.addColorStop(0,"#3036d8");
+  grad.addColorStop(0.5,"#4a4ff0");
+  grad.addColorStop(1,"#3036d8");
+  ctx.fillStyle = grad;
+
+  roundedRect(ctx, -paddleW/2, -paddleH/2, paddleW, paddleH, r);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Guía muy sutil del centro.
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.font = "13px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(`${angleDeg.toFixed(1)}°`, cx, h - 12);
+}
+
+function roundedRect(ctx, x, y, w, h, r){
   ctx.beginPath();
-  for(const [a,b] of edges){
-    ctx.moveTo(pts[a].x,pts[a].y);
-    ctx.lineTo(pts[b].x,pts[b].y);
-  }
-  ctx.stroke();
-
-  ctx.fillStyle="#222";
-  ctx.font="14px system-ui";
-  ctx.fillText("Arrastrame",16,26);
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
 }
 
-function rotate([x,y,z],rx,ry){
-  const cx=Math.cos(rx), sx=Math.sin(rx);
-  const cy=Math.cos(ry), sy=Math.sin(ry);
-  const y1=y*cx-z*sx;
-  const z1=y*sx+z*cx;
-  const x2=x*cy+z1*sy;
-  const z2=-x*sy+z1*cy;
-  return [x2,y1,z2];
-}
-
-function project([x,y,z]){
-  const d=400,s=d/(d-z);
-  return {x:200+x*s,y:150+y*s};
+function clamp(n, min, max){
+  return Math.max(min, Math.min(max, n));
 }
 
 function showError(err){
