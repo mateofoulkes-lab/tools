@@ -9,13 +9,17 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;color:
 #root{width:100%;height:100%}
 .screen{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#111}
 .controller{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#050505;color:#eee;text-align:center;touch-action:none}
-.controller-panel{padding:24px}
-button{padding:14px 18px;font-size:18px;border:1px solid #444;border-radius:12px;background:#222;color:#eee;cursor:pointer}
+.controller-panel{padding:24px;max-width:420px;width:100%;box-sizing:border-box}
+button{padding:14px 18px;font-size:18px;border:1px solid #444;border-radius:12px;background:#222;color:#eee;cursor:pointer;margin:4px}
+button.active{background:#3b43ff;border-color:#6d72ff}
 button:active{transform:translateY(1px)}
-canvas{display:block;background:#fff;touch-action:none}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+label{display:block;margin-top:18px;color:#bbb;font-size:14px}
+input[type=range]{width:100%;margin-top:8px}
 .hint{color:#999;font-size:14px;margin-top:14px}
 .angle{font-size:24px;margin-top:18px;color:#ddd}
 .error{color:#ff9b9b;white-space:pre-wrap;font-size:14px;margin-top:14px}
+canvas{display:block;background:#fff;touch-action:none}
 </style>
 </head>
 <body>
@@ -42,25 +46,28 @@ const MODE = detectMode();
 function App(){
   const publish = db.rooms.usePublishTopic(room, "rotation");
 
-  const rotRef = useRef({x:-0.45,y:0.65});
+  const rotRef = useRef({x:-0.45,z:0});
+  const smoothedRotRef = useRef({x:0,z:0});
   const canvasRef = useRef(null);
   const lastSend = useRef(0);
   const dragging = useRef(false);
   const lastPointer = useRef({x:0,y:0});
   const animationStarted = useRef(false);
-  const sensorEvents = useRef({orientation:0,motion:0,lastOrientationTime:0,lastMotionTime:0});
   const sensorMode = useRef("none");
 
   const [status,setStatus] = useState("Tocá para activar sensores");
-  const [angleUI,setAngleUI] = useState({x:0,y:0});
+  const [angleUI,setAngleUI] = useState({x:0,z:0});
   const [error,setError] = useState("");
+  const [invertX,setInvertX] = useStoredBool("cubeInvertX", true);
+  const [invertY,setInvertY] = useStoredBool("cubeInvertY", true);
+  const [smooth,setSmooth] = useStoredNumber("cubeSmooth", 0.25);
 
   db.rooms.useTopicEffect(room, "rotation", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
     if (msg.type === "rotation"){
       rotRef.current = {
         x: clamp(Number(msg.rotX || 0), -Math.PI, Math.PI),
-        y: clamp(Number(msg.rotY || 0), -Math.PI, Math.PI)
+        z: clamp(Number(msg.rotZ || 0), -Math.PI, Math.PI)
       };
     }
   });
@@ -72,7 +79,7 @@ function App(){
     publish({
       type:"rotation",
       rotX: rot.x,
-      rotY: rot.y,
+      rotZ: rot.z,
       clientId: CLIENT_ID,
       sentAt: Date.now()
     });
@@ -81,7 +88,7 @@ function App(){
   function applyRotation(rot, immediate=false){
     const clean = {
       x: clamp(Number(rot.x || 0), -Math.PI, Math.PI),
-      y: clamp(Number(rot.y || 0), -Math.PI, Math.PI)
+      z: clamp(Number(rot.z || 0), -Math.PI, Math.PI)
     };
     rotRef.current = clean;
     setAngleUI(clean);
@@ -123,9 +130,8 @@ function App(){
 
       window.removeEventListener("deviceorientation", onOrientation, true);
       window.removeEventListener("devicemotion", onMotion, true);
-
-      if (hasOrientation) window.addEventListener("deviceorientation", onOrientation, true);
-      if (hasMotion) window.addEventListener("devicemotion", onMotion, true);
+      window.addEventListener("deviceorientation", onOrientation, true);
+      window.addEventListener("devicemotion", onMotion, true);
 
       setStatus("Sensores activos");
     }catch(e){
@@ -133,45 +139,48 @@ function App(){
     }
   }
 
-  function onOrientation(e){
-    sensorEvents.current.orientation++;
-    sensorEvents.current.lastOrientationTime = Date.now();
+  function applyAxisOptions(rawX, rawY){
+    const sx = invertX ? -1 : 1;
+    const sy = invertY ? -1 : 1;
+    const target = {
+      x: clamp(rawX * sx, -Math.PI/2, Math.PI/2),
+      z: clamp(rawY * sy, -Math.PI/2, Math.PI/2)
+    };
 
-    // Solo usamos orientation si todavía no empezó a llegar motion.
-    // En tu celu orientation puede quedar clavado aunque diga que está activo.
+    const alpha = clamp(Number(smooth), 0, 0.95);
+    const prev = smoothedRotRef.current;
+    const next = {
+      x: prev.x + (target.x - prev.x) * (1 - alpha),
+      z: prev.z + (target.z - prev.z) * (1 - alpha)
+    };
+    smoothedRotRef.current = next;
+    return next;
+  }
+
+  function onOrientation(e){
     if (sensorMode.current === "motion") return;
+    sensorMode.current = "orientation";
 
     const beta = Number(e.beta ?? 0);
     const gamma = Number(e.gamma ?? 0);
 
-    const rot = {
-      x: clamp(degToRad(-beta), -Math.PI/2, Math.PI/2),
-      y: clamp(degToRad(gamma), -Math.PI/2, Math.PI/2)
-    };
-
-    sensorMode.current = "orientation";
+    const rot = applyAxisOptions(degToRad(beta), degToRad(gamma));
     applyRotation(rot);
   }
 
   function onMotion(e){
-    sensorEvents.current.motion++;
-    sensorEvents.current.lastMotionTime = Date.now();
+    sensorMode.current = "motion";
 
     const acc = e.accelerationIncludingGravity || e.acceleration || {x:0,y:0,z:0};
     const ax = Number(acc.x ?? 0);
     const ay = Number(acc.y ?? 0);
     const az = Number(acc.z ?? 0);
 
-    // En Android esto suele ser más confiable que deviceorientation.
-    // pitch = adelante/atrás, roll = izquierda/derecha.
     const pitch = Math.atan2(ay, Math.sqrt(ax*ax + az*az));
     const roll = Math.atan2(ax, Math.sqrt(ay*ay + az*az));
 
-    sensorMode.current = "motion";
-    applyRotation({
-      x: clamp(-pitch, -Math.PI/2, Math.PI/2),
-      y: clamp(roll, -Math.PI/2, Math.PI/2)
-    });
+    const rot = applyAxisOptions(pitch, roll);
+    applyRotation(rot);
   }
 
   useEffect(() => {
@@ -195,7 +204,7 @@ function App(){
     const canvas = canvasRef.current;
     if (canvas){
       const ctx = canvas.getContext("2d");
-      drawCube(ctx, canvas.width, canvas.height, rotRef.current.x, rotRef.current.y);
+      drawCube(ctx, canvas.width, canvas.height, rotRef.current.x, rotRef.current.z);
     }
     requestAnimationFrame(loop);
   }
@@ -214,7 +223,7 @@ function App(){
 
     const rot = {
       x: rotRef.current.x + dy * 0.01,
-      y: rotRef.current.y + dx * 0.01
+      z: rotRef.current.z + dx * 0.01
     };
     applyRotation(rot);
   }
@@ -230,8 +239,24 @@ function App(){
         React.createElement("button", {onClick:activateSensors}, "Activar sensores"),
         React.createElement("div", {className:"hint"}, status),
         React.createElement("div", {className:"angle"},
-          "X ", radToDeg(angleUI.x).toFixed(0), "° · Y ", radToDeg(angleUI.y).toFixed(0), "°"
+          "X ", radToDeg(angleUI.x).toFixed(0), "° · Y visual ", radToDeg(angleUI.z).toFixed(0), "°"
         ),
+        React.createElement("div", {className:"row"},
+          React.createElement("button", {className:invertX?"active":"", onClick:()=>setInvertX(!invertX)}, invertX ? "Invertir X: ON" : "Invertir X: OFF"),
+          React.createElement("button", {className:invertY?"active":"", onClick:()=>setInvertY(!invertY)}, invertY ? "Invertir Y: ON" : "Invertir Y: OFF")
+        ),
+        React.createElement("label", null,
+          "Suavizado jitter: ", Number(smooth).toFixed(2),
+          React.createElement("input", {
+            type:"range",
+            min:"0",
+            max:"0.95",
+            step:"0.05",
+            value:smooth,
+            onChange:e=>setSmooth(Number(e.target.value))
+          })
+        ),
+        React.createElement("div", {className:"hint"}, "0 = respuesta inmediata · 0.95 = muy suave/lento"),
         error ? React.createElement("div", {className:"error"}, error) : null
       )
     );
@@ -248,7 +273,7 @@ function App(){
   );
 }
 
-function drawCube(ctx, w, h, rx, ry){
+function drawCube(ctx, w, h, rx, rz){
   ctx.clearRect(0,0,w,h);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0,0,w,h);
@@ -257,7 +282,7 @@ function drawCube(ctx, w, h, rx, ry){
   const pts3 = [
     [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
     [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
-  ].map(p => rotate3D(p.map(v=>v*size), rx, ry));
+  ].map(p => rotate3D(p.map(v=>v*size), rx, rz));
 
   const pts = pts3.map(p => project(p, w, h));
 
@@ -301,15 +326,22 @@ function drawCube(ctx, w, h, rx, ry){
   }
 }
 
-function rotate3D([x,y,z], rx, ry){
+function rotate3D([x,y,z], rx, rz){
+  // rx = inclinación arriba/abajo.
+  // rz = rotación visual izquierda/derecha en el plano de pantalla.
+  // Evitamos rotar alrededor de Y porque eso hace “girar la profundidad Z”.
   const cx=Math.cos(rx), sx=Math.sin(rx);
-  const cy=Math.cos(ry), sy=Math.sin(ry);
+  const cz=Math.cos(rz), sz=Math.sin(rz);
 
+  // rotate around X
   const y1 = y*cx - z*sx;
   const z1 = y*sx + z*cx;
-  const x2 = x*cy + z1*sy;
-  const z2 = -x*sy + z1*cy;
-  return [x2,y1,z2];
+
+  // rotate around Z (visual roll)
+  const x2 = x*cz - y1*sz;
+  const y2 = x*sz + y1*cz;
+
+  return [x2,y2,z1];
 }
 
 function project([x,y,z], w, h){
@@ -329,6 +361,30 @@ function detectMode(){
   const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 800;
 
   return (mobileByUA || (coarsePointer && smallScreen)) ? "controller" : "screen";
+}
+
+function useStoredBool(key, initial){
+  const [value,setValueState] = useState(() => {
+    const stored = localStorage.getItem(key);
+    return stored === null ? initial : stored === "true";
+  });
+  function setValue(next){
+    localStorage.setItem(key, String(next));
+    setValueState(next);
+  }
+  return [value,setValue];
+}
+
+function useStoredNumber(key, initial){
+  const [value,setValueState] = useState(() => {
+    const stored = Number(localStorage.getItem(key));
+    return Number.isFinite(stored) ? stored : initial;
+  });
+  function setValue(next){
+    localStorage.setItem(key, String(next));
+    setValueState(next);
+  }
+  return [value,setValue];
 }
 
 function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
