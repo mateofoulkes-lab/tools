@@ -10,6 +10,7 @@ body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0
 .card{border:1px solid #ddd;border-radius:14px;padding:16px;margin:16px 0}
 canvas{border:1px solid #ccc;border-radius:12px;touch-action:none;max-width:100%;background:#fafafa}
 input{width:100%}
+textarea{width:100%;min-height:140px;padding:10px;font-size:16px;box-sizing:border-box;resize:vertical;font-family:system-ui,sans-serif}
 .muted{color:#666;font-size:14px}
 </style>
 </head>
@@ -38,15 +39,26 @@ function App(){
   const [slider,setSlider] = useState(50);
   const [rot,setRot] = useState({x:-0.3,y:0.6});
   const [lat,setLat] = useState("Esperando movimiento remoto...");
+  const [textArea,setTextArea] = useState("");
+
   const canvasRef = useRef(null);
   const dragging = useRef(false);
   const last = useRef({x:0,y:0});
   const rotRef = useRef(rot);
   const sliderRef = useRef(slider);
+  const textAreaRef = useRef("");
   const lastSend = useRef(0);
 
   db.rooms.useTopicEffect(room, "move", (msg) => {
     if (!msg || msg.clientId === CLIENT_ID) return;
+
+    if (msg.type === "text") {
+      const incomingText = String(msg.text ?? "");
+      textAreaRef.current = incomingText;
+      setTextArea(incomingText);
+      setLat("Latencia texto aprox: " + (Date.now() - Number(msg.sentAt)) + " ms");
+      return;
+    }
 
     const r = {x:Number(msg.rotX), y:Number(msg.rotY)};
     const s = Number(msg.slider);
@@ -67,6 +79,7 @@ function App(){
     lastSend.current = now;
 
     publishMove({
+      type: "move",
       clientId: CLIENT_ID,
       slider: sliderRef.current,
       rotX: rotRef.current.x,
@@ -80,6 +93,19 @@ function App(){
     sliderRef.current = v;
     setSlider(v);
     send();
+  }
+
+  function onTextArea(e){
+    const value = e.target.value;
+    textAreaRef.current = value;
+    setTextArea(value);
+
+    publishMove({
+      type: "text",
+      clientId: CLIENT_ID,
+      text: value,
+      sentAt: Date.now()
+    });
   }
 
   function down(e){
@@ -115,6 +141,14 @@ function App(){
       React.createElement("p", {className:"muted"}, lat),
       React.createElement("label", null, "Slider: ", React.createElement("b", null, slider)),
       React.createElement("input", {type:"range", min:0, max:100, value:slider, onInput:onSlider})
+    ),
+    React.createElement("div", {className:"card"},
+      React.createElement("p", {className:"muted"}, "Textarea colaborativo por topic. Si dos dispositivos escriben a la vez, gana el último mensaje recibido."),
+      React.createElement("textarea", {
+        value:textArea,
+        onChange:onTextArea,
+        placeholder:"Escribí acá y mirá cómo aparece en el otro dispositivo..."
+      })
     ),
     React.createElement("div", {className:"card"},
       React.createElement("canvas", {
