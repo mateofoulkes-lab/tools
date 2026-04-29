@@ -327,7 +327,7 @@ function App(){
       }
 
       // delete and regenerate if out of canvas
-      if (b.y > h + 20 || b.x < -20 || b.x > w + 20){
+      if (b.y > h + 20 || b.y < -20 || b.x < -20 || b.x > w + 20){
         balls.splice(i, 1);
         balls.push(spawnBall());
         continue;
