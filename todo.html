@@ -1,564 +1,242 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>To Do List + Latencia - InstantDB</title>
-  <style>
-    :root {
-      --bg: #f6f7fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #667085;
-      --line: #d9dee8;
-      --accent: #2563eb;
-      --danger: #dc2626;
-      --ok: #16a34a;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>To Do + Latencia</title>
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    main {
-      max-width: 980px;
-      margin: 24px auto;
-      padding: 0 16px 40px;
-    }
-
-    h1 { margin: 0 0 4px; }
-    h2 { margin-top: 0; }
-
-    .muted {
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      margin: 18px 0;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-    }
-
-    form {
-      display: flex;
-      gap: 8px;
-      margin: 14px 0;
-    }
-
-    input, button {
-      font: inherit;
-    }
-
-    input[type="text"] {
-      flex: 1;
-      min-width: 0;
-      padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-    }
-
-    button {
-      border: 1px solid var(--line);
-      background: #fff;
-      padding: 9px 11px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-
-    button.primary {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    button.danger {
-      color: var(--danger);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    td, th {
-      border-bottom: 1px solid var(--line);
-      padding: 9px;
-      text-align: left;
-      vertical-align: middle;
-    }
-
-    th { font-size: 13px; color: var(--muted); }
-
-    .done {
-      text-decoration: line-through;
-      color: var(--muted);
-    }
-
-    .actions {
-      white-space: nowrap;
-      text-align: right;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      align-items: start;
-    }
-
-    .sliderBox {
-      border: 1px dashed var(--line);
-      border-radius: 14px;
-      padding: 14px;
-    }
-
-    input[type="range"] {
-      width: 100%;
-      margin-top: 14px;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      max-width: 440px;
-      height: auto;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: linear-gradient(180deg, #fff, #eef2ff);
-      touch-action: none;
-    }
-
-    .debug {
-      background: #0f172a;
-      color: #dbeafe;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      overflow-x: auto;
-      margin-top: 12px;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #eef2ff;
-      font-size: 13px;
-      color: #334155;
-    }
-
-    .dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: var(--ok);
-      display: inline-block;
-    }
-
-    @media (max-width: 760px) {
-      main { margin-top: 16px; }
-      .grid { grid-template-columns: 1fr; }
-      form { flex-direction: column; }
-      .actions button { margin-top: 4px; }
-    }
-  </style>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
+  section{border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0}
+  form{display:flex;gap:8px}
+  input,button{padding:10px;font-size:16px}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  td{border-bottom:1px solid #ddd;padding:8px}
+  canvas{border:1px solid #ccc;border-radius:12px;touch-action:none}
+</style>
 </head>
+
 <body>
-<main>
-  <h1>To Do List + prueba de latencia</h1>
-  <div id="status" class="muted">Conectando...</div>
 
-  <section class="card">
-    <h2>ABM simple</h2>
-    <form id="form">
-      <input id="text" type="text" placeholder="Nueva tarea..." autocomplete="off" />
-      <button class="primary">Agregar</button>
-    </form>
+<script>
+/* ===========================
+   🔥 PEGÁ TU APP ID ACÁ
+=========================== */
+const APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
+</script>
 
-    <table>
-      <thead>
-        <tr>
-          <th style="width:70px">Hecha</th>
-          <th>Tarea</th>
-          <th style="width:150px"></th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </section>
+<h1>To Do + Latencia</h1>
+<div id="status">Conectando...</div>
 
-  <section class="card">
-    <h2>Prueba de sincronización</h2>
-    <p class="muted">
-      Abrí esta misma página en PC y celular. Mové el slider o arrastrá el cubo en un dispositivo y mirá el otro.
-    </p>
+<section>
+  <h2>To Do</h2>
+  <form id="form">
+    <input id="text" placeholder="Nueva tarea">
+    <button>Agregar</button>
+  </form>
+  <table><tbody id="rows"></tbody></table>
+</section>
 
-    <p>
-      <span class="pill"><span class="dot"></span><span id="latencyInfo">Esperando datos...</span></span>
-    </p>
-
-    <div class="grid">
-      <div class="sliderBox">
-        <label for="slider">Slider sincronizado: <b id="sliderValue">50</b></label>
-        <input id="slider" type="range" min="0" max="100" value="50" />
-        <p class="muted">Se envía con throttle de 50 ms, aprox. 20 actualizaciones por segundo.</p>
-      </div>
-
-      <div>
-        <canvas id="cube" width="440" height="330"></canvas>
-        <p class="muted">Arrastrá con mouse o dedo. El estado queda guardado y debería sobrevivir a recargar la página.</p>
-      </div>
-    </div>
-
-    <div id="debug" class="debug">Debug: esperando...</div>
-  </section>
-</main>
+<section>
+  <h2>Prueba tiempo real</h2>
+  <input id="slider" type="range" min="0" max="100" value="50">
+  <div id="latency"></div>
+  <canvas id="cube" width="400" height="300"></canvas>
+</section>
 
 <script type="module">
-  import { init, id } from "https://esm.sh/@instantdb/core";
-  import { APP_ID } from "./config.js";
+import { init, id } from "https://esm.sh/@instantdb/core";
 
-  const db = init({ appId: APP_ID });
+const db = init({ appId: APP_ID });
 
-  const CLIENT_ID_KEY = "instantdb-latency-client-id";
-  const CLIENT_ID = localStorage.getItem(CLIENT_ID_KEY) || crypto.randomUUID();
-  localStorage.setItem(CLIENT_ID_KEY, CLIENT_ID);
+const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.randomUUID());
+const SHARED_ID = "11111111-1111-4111-8111-111111111111";
 
-  // UUID fijo válido. InstantDB necesita IDs con formato UUID.
-  const SHARED_ID = "11111111-1111-4111-8111-111111111111";
+const rows = document.querySelector("#rows");
+const form = document.querySelector("#form");
+const text = document.querySelector("#text");
 
-  const status = document.querySelector("#status");
-  const form = document.querySelector("#form");
-  const text = document.querySelector("#text");
-  const rows = document.querySelector("#rows");
+const slider = document.querySelector("#slider");
+const latency = document.querySelector("#latency");
 
-  const slider = document.querySelector("#slider");
-  const sliderValue = document.querySelector("#sliderValue");
-  const latencyInfo = document.querySelector("#latencyInfo");
-  const debug = document.querySelector("#debug");
+const canvas = document.querySelector("#cube");
+const ctx = canvas.getContext("2d");
 
-  const canvas = document.querySelector("#cube");
-  const ctx = canvas.getContext("2d");
+let rotX = -0.3;
+let rotY = 0.6;
+let todos = [];
 
-  let todos = [];
-  let sharedState = {
-    id: SHARED_ID,
-    slider: 50,
-    rotX: -0.4,
-    rotY: 0.6,
-    sentAt: Date.now(),
-    sender: "initial"
+/* ===========================
+   SUBSCRIBE
+=========================== */
+
+db.subscribeQuery({ todos: {}, syncStates: {} }, (resp) => {
+  if (resp.error) return console.error(resp.error);
+
+  todos = resp.data.todos ?? [];
+
+  const state = (resp.data.syncStates ?? []).find(x => x.id === SHARED_ID);
+
+  if (state && state.sender !== CLIENT_ID) {
+    slider.value = state.slider ?? 50;
+    rotX = state.rotX ?? rotX;
+    rotY = state.rotY ?? rotY;
+
+    const lag = Date.now() - state.sentAt;
+    latency.textContent = "Latencia aprox: " + lag + " ms";
+  }
+
+  renderTodos();
+  draw();
+});
+
+/* ===========================
+   TODO
+=========================== */
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  if (!text.value.trim()) return;
+
+  await db.transact(
+    db.tx.todos[id()].create({
+      text: text.value,
+      done: false
+    })
+  );
+
+  text.value = "";
+};
+
+function renderTodos() {
+  rows.innerHTML = "";
+  for (const t of todos) {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${t.text}</td>
+      <td><button>Borrar</button></td>
+    `;
+
+    tr.querySelector("button").onclick = () =>
+      db.transact(db.tx.todos[t.id].delete());
+
+    rows.appendChild(tr);
+  }
+}
+
+/* ===========================
+   SYNC
+=========================== */
+
+const publish = throttle(() => {
+  db.transact(
+    db.tx.syncStates[SHARED_ID].update({
+      slider: Number(slider.value),
+      rotX,
+      rotY,
+      sentAt: Date.now(),
+      sender: CLIENT_ID
+    })
+  );
+}, 50);
+
+slider.oninput = publish;
+
+/* ===========================
+   CUBO
+=========================== */
+
+let dragging = false, lx=0, ly=0;
+
+canvas.onpointerdown = e => {
+  dragging = true;
+  lx = e.clientX;
+  ly = e.clientY;
+};
+
+canvas.onpointermove = e => {
+  if (!dragging) return;
+
+  const dx = e.clientX - lx;
+  const dy = e.clientY - ly;
+
+  lx = e.clientX;
+  ly = e.clientY;
+
+  rotY += dx * 0.01;
+  rotX += dy * 0.01;
+
+  draw();
+  publish();
+};
+
+canvas.onpointerup = () => dragging=false;
+canvas.onpointercancel = () => dragging=false;
+
+function draw() {
+  ctx.clearRect(0,0,400,300);
+
+  const size = 80;
+
+  const pts = [
+    [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+    [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
+  ].map(p => project(rotate(p.map(v=>v*size))));
+
+  const edges = [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7]
+  ];
+
+  ctx.beginPath();
+  for (const [a,b] of edges) {
+    ctx.moveTo(pts[a].x, pts[a].y);
+    ctx.lineTo(pts[b].x, pts[b].y);
+  }
+  ctx.stroke();
+}
+
+function rotate([x,y,z]) {
+  const cx=Math.cos(rotX), sx=Math.sin(rotX);
+  const cy=Math.cos(rotY), sy=Math.sin(rotY);
+
+  let y1=y*cx - z*sx;
+  let z1=y*sx + z*cx;
+  let x2=x*cy + z1*sy;
+  let z2=-x*sy + z1*cy;
+
+  return [x2,y1,z2];
+}
+
+function project([x,y,z]) {
+  const d=400;
+  const s=d/(d-z);
+  return {
+    x:200+x*s,
+    y:150+y*s
   };
+}
 
-  let localRotX = sharedState.rotX;
-  let localRotY = sharedState.rotY;
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  let hasLoadedRemoteState = false;
+/* ===========================
+   UTILS
+=========================== */
 
-  db.subscribeQuery({ todos: {}, syncStates: {} }, (resp) => {
-    if (resp.error) {
-      status.textContent = "Error de conexión: " + resp.error.message;
-      debug.textContent = "Subscribe error: " + resp.error.message;
-      return;
+function throttle(fn, delay) {
+  let last = 0;
+  return () => {
+    const now = Date.now();
+    if (now - last > delay) {
+      last = now;
+      fn();
     }
+  };
+}
 
-    todos = (resp.data?.todos ?? [])
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+draw();
+publish();
 
-    const states = resp.data?.syncStates ?? [];
-    const foundState = states.find((x) => x.id === SHARED_ID);
-
-    if (foundState) {
-      hasLoadedRemoteState = true;
-      applyRemoteState(foundState);
-    } else if (!hasLoadedRemoteState) {
-      // Crea el estado inicial una sola vez si todavía no existe.
-      publishStateNow("crear estado inicial");
-    }
-
-    status.textContent = `Sincronizado · ${todos.length} tarea(s)`;
-    renderTodos();
-    updateDebug(foundState, states.length);
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const value = text.value.trim();
-    if (!value) return;
-
-    try {
-      await db.transact(
-        db.tx.todos[id()].create({
-          text: value,
-          done: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        })
-      );
-      text.value = "";
-      text.focus();
-    } catch (err) {
-      status.textContent = "Error agregando tarea: " + err.message;
-      console.error(err);
-    }
-  });
-
-  function renderTodos() {
-    rows.innerHTML = "";
-
-    for (const todo of todos) {
-      const tr = document.createElement("tr");
-
-      const checked = todo.done ? "checked" : "";
-      const css = todo.done ? "done" : "";
-
-      tr.innerHTML = `
-        <td><input type="checkbox" ${checked} aria-label="Marcar tarea"></td>
-        <td class="${css}">${escapeHtml(todo.text ?? "")}</td>
-        <td class="actions">
-          <button data-edit>Editar</button>
-          <button data-delete class="danger">Borrar</button>
-        </td>
-      `;
-
-      tr.querySelector("input").addEventListener("change", () => {
-        db.transact(
-          db.tx.todos[todo.id].update({
-            done: !todo.done,
-            updatedAt: Date.now()
-          })
-        );
-      });
-
-      tr.querySelector("[data-edit]").addEventListener("click", () => {
-        const nuevo = prompt("Editar tarea:", todo.text ?? "");
-        if (nuevo === null) return;
-        const clean = nuevo.trim();
-        if (!clean) return;
-
-        db.transact(
-          db.tx.todos[todo.id].update({
-            text: clean,
-            updatedAt: Date.now()
-          })
-        );
-      });
-
-      tr.querySelector("[data-delete]").addEventListener("click", () => {
-        if (!confirm("¿Borrar esta tarea?")) return;
-        db.transact(db.tx.todos[todo.id].delete());
-      });
-
-      rows.appendChild(tr);
-    }
-  }
-
-  function applyRemoteState(state) {
-    sharedState = state;
-
-    const remoteSlider = Number(state.slider ?? 50);
-    const remoteRotX = Number(state.rotX ?? localRotX);
-    const remoteRotY = Number(state.rotY ?? localRotY);
-
-    slider.value = remoteSlider;
-    sliderValue.textContent = String(remoteSlider);
-    localRotX = remoteRotX;
-    localRotY = remoteRotY;
-
-    const lag = Date.now() - Number(state.sentAt ?? Date.now());
-    const shortSender = String(state.sender ?? "?").slice(0, 8);
-
-    if (state.sender === CLIENT_ID) {
-      latencyInfo.textContent = "Último cambio enviado desde este dispositivo";
-    } else {
-      latencyInfo.textContent = `Cambio remoto recibido: ~${Math.max(0, lag)} ms · origen ${shortSender}`;
-    }
-
-    drawCube();
-  }
-
-  const publishState = throttle(() => publishStateNow("interacción"), 50);
-
-  async function publishStateNow(reason) {
-    try {
-      await db.transact(
-        db.tx.syncStates[SHARED_ID].update({
-          slider: Number(slider.value),
-          rotX: localRotX,
-          rotY: localRotY,
-          sentAt: Date.now(),
-          sender: CLIENT_ID,
-          reason
-        })
-      );
-    } catch (err) {
-      latencyInfo.textContent = "Error guardando syncState: " + err.message;
-      debug.textContent = "Transact error: " + err.message;
-      console.error(err);
-    }
-  }
-
-  slider.addEventListener("input", () => {
-    sliderValue.textContent = slider.value;
-    publishState();
-  });
-
-  canvas.addEventListener("pointerdown", (e) => {
-    dragging = true;
-    canvas.setPointerCapture(e.pointerId);
-    lastX = e.clientX;
-    lastY = e.clientY;
-  });
-
-  canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-
-    localRotY += dx * 0.01;
-    localRotX += dy * 0.01;
-
-    drawCube();
-    publishState();
-  });
-
-  canvas.addEventListener("pointerup", () => {
-    dragging = false;
-    publishStateNow("fin drag");
-  });
-
-  canvas.addEventListener("pointercancel", () => {
-    dragging = false;
-    publishStateNow("cancel drag");
-  });
-
-  function drawCube() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const size = 82;
-    const vertices = [
-      [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-      [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
-    ].map(([x, y, z]) => project(rotate([x * size, y * size, z * size])));
-
-    const edges = [
-      [0,1], [1,2], [2,3], [3,0],
-      [4,5], [5,6], [6,7], [7,4],
-      [0,4], [1,5], [2,6], [3,7]
-    ];
-
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#1f2937";
-
-    for (const [a, b] of edges) {
-      ctx.beginPath();
-      ctx.moveTo(vertices[a].x, vertices[a].y);
-      ctx.lineTo(vertices[b].x, vertices[b].y);
-      ctx.stroke();
-    }
-
-    for (let i = 0; i < vertices.length; i++) {
-      ctx.beginPath();
-      ctx.arc(vertices[i].x, vertices[i].y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "#2563eb";
-      ctx.fill();
-    }
-
-    ctx.fillStyle = "#334155";
-    ctx.font = "15px system-ui";
-    ctx.fillText("Arrastrame", 16, 28);
-  }
-
-  function rotate([x, y, z]) {
-    const cx = Math.cos(localRotX);
-    const sx = Math.sin(localRotX);
-    const cy = Math.cos(localRotY);
-    const sy = Math.sin(localRotY);
-
-    const y1 = y * cx - z * sx;
-    const z1 = y * sx + z * cx;
-    const x2 = x * cy + z1 * sy;
-    const z2 = -x * sy + z1 * cy;
-
-    return [x2, y1, z2];
-  }
-
-  function project([x, y, z]) {
-    const distance = 430;
-    const scale = distance / (distance - z);
-
-    return {
-      x: canvas.width / 2 + x * scale,
-      y: canvas.height / 2 + y * scale
-    };
-  }
-
-  function throttle(fn, delay) {
-    let last = 0;
-    let timer = null;
-
-    return function() {
-      const now = Date.now();
-      const remaining = delay - (now - last);
-
-      if (remaining <= 0) {
-        clearTimeout(timer);
-        timer = null;
-        last = now;
-        fn();
-      } else {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          last = Date.now();
-          fn();
-        }, remaining);
-      }
-    };
-  }
-
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[c]));
-  }
-
-  function updateDebug(foundState, totalStates) {
-    debug.textContent = [
-      `client: ${CLIENT_ID}`,
-      `shared id: ${SHARED_ID}`,
-      `syncStates encontrados: ${totalStates}`,
-      `estado compartido existe: ${foundState ? "sí" : "no"}`,
-      foundState ? `slider: ${foundState.slider}` : "slider: -",
-      foundState ? `rotX: ${Number(foundState.rotX).toFixed(3)}` : "rotX: -",
-      foundState ? `rotY: ${Number(foundState.rotY).toFixed(3)}` : "rotY: -",
-      foundState ? `sender: ${String(foundState.sender).slice(0, 8)}` : "sender: -",
-      foundState ? `sentAt: ${new Date(foundState.sentAt).toLocaleTimeString()}` : "sentAt: -"
-    ].join("\n");
-  }
-
-  drawCube();
 </script>
 </body>
 </html>
