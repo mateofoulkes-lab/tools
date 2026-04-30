@@ -2,16 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Chat General</title>
 
 <script type="module">
   import { init, tx, id } from "https://esm.sh/@instantdb/core";
 
   const APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
-
   const db = init({ appId: APP_ID });
-
   const $ = (s) => document.querySelector(s);
 
   const state = {
@@ -19,7 +17,9 @@
     nick: localStorage.getItem("chat-nick") || "Invitado",
     color: localStorage.getItem("chat-color") || "#66b3ff",
     messages: [],
-    users: []
+    users: [],
+    userScrolledUp: false,
+    unseenCount: 0
   };
 
   localStorage.setItem("chat-user-id", state.userId);
@@ -31,11 +31,51 @@
     messages: $("#messages"),
     form: $("#form"),
     input: $("#input"),
-    status: $("#status")
+    status: $("#status"),
+    jumpBottom: $("#jumpBottom")
   };
 
   els.nick.value = state.nick;
   els.color.value = state.color;
+
+  function isNearBottom() {
+    return els.messages.scrollTop + els.messages.clientHeight >= els.messages.scrollHeight - 90;
+  }
+
+  function scrollToBottom(smooth = false) {
+    els.messages.scrollTo({
+      top: els.messages.scrollHeight,
+      behavior: smooth ? "smooth" : "auto"
+    });
+    state.unseenCount = 0;
+    updateJumpButton();
+  }
+
+  function updateJumpButton() {
+    if (!state.userScrolledUp || state.unseenCount === 0) {
+      els.jumpBottom.classList.remove("show");
+      return;
+    }
+
+    els.jumpBottom.textContent = state.unseenCount === 1
+      ? "1 mensaje nuevo"
+      : `${state.unseenCount} mensajes nuevos`;
+
+    els.jumpBottom.classList.add("show");
+  }
+
+  els.messages.addEventListener("scroll", () => {
+    state.userScrolledUp = !isNearBottom();
+    if (!state.userScrolledUp) {
+      state.unseenCount = 0;
+    }
+    updateJumpButton();
+  });
+
+  els.jumpBottom.addEventListener("click", () => {
+    state.userScrolledUp = false;
+    scrollToBottom(true);
+  });
 
   function saveProfile() {
     state.nick = els.nick.value.trim() || "Invitado";
@@ -83,6 +123,8 @@
       els.status.textContent = "Conectado";
 
       const now = Date.now();
+      const previousCount = state.messages.length;
+      const wasNearBottom = isNearBottom();
 
       state.messages = [...(resp.data.messages || [])]
         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -91,31 +133,36 @@
         .filter(u => now - (u.lastSeen || 0) < 20000)
         .sort((a, b) => (a.nick || "").localeCompare(b.nick || ""));
 
+      const newCount = Math.max(0, state.messages.length - previousCount);
+
       renderMessages();
       renderUsers();
+
+      if (wasNearBottom || !state.userScrolledUp) {
+        scrollToBottom(false);
+      } else if (newCount > 0) {
+        state.unseenCount += newCount;
+        updateJumpButton();
+      }
     }
   );
 
   function renderMessages() {
-    const atBottom =
-      els.messages.scrollTop + els.messages.clientHeight >= els.messages.scrollHeight - 60;
-
-    els.messages.innerHTML = state.messages.map(m => `
-      <div class="msg">
-        <div class="avatar" style="background:${escapeHtml(m.color || "#66b3ff")}"></div>
-        <div class="bubble">
-          <div class="meta">
-            <span class="nick" style="color:${escapeHtml(m.color || "#66b3ff")}">${escapeHtml(m.nick || "Invitado")}</span>
-            <span class="time">${formatTime(m.createdAt)}</span>
+    els.messages.innerHTML = state.messages.map(m => {
+      const mine = m.userId === state.userId;
+      return `
+        <div class="msg ${mine ? "mine" : ""}">
+          <div class="avatar" style="background:${escapeHtml(m.color || "#66b3ff")}"></div>
+          <div class="bubble">
+            <div class="meta">
+              <span class="nick" style="color:${escapeHtml(m.color || "#66b3ff")}">${escapeHtml(m.nick || "Invitado")}</span>
+              <span class="time">${formatTime(m.createdAt)}</span>
+            </div>
+            <div class="text">${escapeHtml(m.text || "")}</div>
           </div>
-          <div class="text">${escapeHtml(m.text || "")}</div>
         </div>
-      </div>
-    `).join("");
-
-    if (atBottom) {
-      els.messages.scrollTop = els.messages.scrollHeight;
-    }
+      `;
+    }).join("");
   }
 
   function renderUsers() {
@@ -127,6 +174,18 @@
     `).join("");
   }
 
+  els.input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      ev.preventDefault();
+      els.form.requestSubmit();
+    }
+  });
+
+  els.input.addEventListener("input", () => {
+    els.input.style.height = "auto";
+    els.input.style.height = Math.min(140, els.input.scrollHeight) + "px";
+  });
+
   els.form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
 
@@ -134,6 +193,7 @@
     if (!text) return;
 
     els.input.value = "";
+    els.input.style.height = "auto";
 
     await db.transact(
       tx.messages[id()].update({
@@ -145,7 +205,9 @@
       })
     );
 
+    state.userScrolledUp = false;
     heartbeat();
+    requestAnimationFrame(() => scrollToBottom(true));
   });
 
   function formatTime(ts) {
@@ -180,25 +242,32 @@
 
   * { box-sizing: border-box; }
 
-  body {
+  html, body {
     margin: 0;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     background: radial-gradient(circle at top, #1a2336, #0f1115 55%);
     color: var(--text);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     overflow: hidden;
   }
 
+  body {
+    height: 100dvh;
+  }
+
   .app {
-    height: 100vh;
+    height: 100dvh;
     display: grid;
-    grid-template-columns: 1fr 260px;
+    grid-template-columns: minmax(0, 1fr) 260px;
   }
 
   .main {
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     min-width: 0;
+    min-height: 0;
+    position: relative;
   }
 
   .topbar {
@@ -209,6 +278,7 @@
     border-bottom: 1px solid var(--border);
     background: rgba(15, 18, 25, .78);
     backdrop-filter: blur(10px);
+    z-index: 2;
   }
 
   .topbar input[type="text"] {
@@ -238,6 +308,8 @@
   .messages {
     padding: 18px;
     overflow-y: auto;
+    min-height: 0;
+    overscroll-behavior: contain;
   }
 
   .msg {
@@ -245,6 +317,10 @@
     gap: 10px;
     margin-bottom: 14px;
     align-items: flex-start;
+  }
+
+  .msg.mine {
+    flex-direction: row-reverse;
   }
 
   .avatar {
@@ -258,9 +334,15 @@
   .bubble {
     max-width: min(760px, 90%);
     padding: 10px 12px;
-    border-radius: 14px;
+    border-radius: 14px 14px 14px 4px;
     background: rgba(255,255,255,.055);
     border: 1px solid rgba(255,255,255,.08);
+  }
+
+  .mine .bubble {
+    border-radius: 14px 14px 4px 14px;
+    background: rgba(58, 126, 232, .22);
+    border-color: rgba(102,179,255,.22);
   }
 
   .meta {
@@ -268,6 +350,10 @@
     gap: 8px;
     align-items: baseline;
     margin-bottom: 4px;
+  }
+
+  .mine .meta {
+    justify-content: flex-end;
   }
 
   .nick {
@@ -287,30 +373,68 @@
 
   .form {
     display: flex;
+    align-items: flex-end;
     gap: 10px;
     padding: 14px;
     border-top: 1px solid var(--border);
-    background: rgba(15, 18, 25, .82);
+    background: rgba(15, 18, 25, .88);
     backdrop-filter: blur(10px);
+    z-index: 3;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
 
-  .form input {
+  .form textarea {
     flex: 1;
+    min-height: 46px;
+    max-height: 140px;
+    resize: none;
     padding: 13px 14px;
-    border-radius: 14px;
+    border-radius: 18px;
     border: 1px solid var(--border);
     background: #101722;
     color: var(--text);
+    line-height: 1.35;
+    outline: none;
+    overflow-y: auto;
+  }
+
+  .form textarea:focus {
+    border-color: rgba(102,179,255,.48);
   }
 
   .form button {
+    min-height: 46px;
     padding: 0 18px;
     border: 1px solid #4e90f7;
-    border-radius: 14px;
+    border-radius: 18px;
     background: linear-gradient(180deg, #3a7ee8, #2962c9);
     color: white;
     cursor: pointer;
     font-weight: 700;
+  }
+
+  .jump-bottom {
+    position: absolute;
+    left: 50%;
+    bottom: 82px;
+    transform: translateX(-50%) translateY(10px);
+    opacity: 0;
+    pointer-events: none;
+    border: 1px solid rgba(102,179,255,.34);
+    background: rgba(20, 31, 48, .92);
+    color: #d8ecff;
+    padding: 9px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    z-index: 4;
+    box-shadow: 0 10px 24px rgba(0,0,0,.24);
+    transition: .18s ease;
+  }
+
+  .jump-bottom.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
   }
 
   .side {
@@ -346,9 +470,21 @@
     flex: 0 0 auto;
   }
 
+  @supports not (height: 100dvh) {
+    body,
+    .app {
+      height: 100vh;
+    }
+  }
+
   @media (max-width: 800px) {
     .app {
       grid-template-columns: 1fr;
+    }
+
+    .main {
+      height: 100dvh;
+      grid-template-rows: auto minmax(0, 1fr) auto;
     }
 
     .side {
@@ -357,10 +493,47 @@
 
     .topbar {
       flex-wrap: wrap;
+      padding: 10px;
+    }
+
+    .topbar input[type="text"] {
+      width: min(180px, calc(100vw - 96px));
     }
 
     .status {
+      width: 100%;
       margin-left: 0;
+      font-size: 12px;
+    }
+
+    .messages {
+      padding: 12px;
+      padding-bottom: 18px;
+    }
+
+    .bubble {
+      max-width: 82vw;
+    }
+
+    .form {
+      padding: 10px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      gap: 8px;
+    }
+
+    .form textarea {
+      min-height: 44px;
+      padding: 11px 12px;
+    }
+
+    .form button {
+      min-height: 44px;
+      padding: 0 14px;
+    }
+
+    .jump-bottom {
+      bottom: 72px;
+      font-size: 13px;
     }
   }
 </style>
@@ -377,8 +550,10 @@
 
       <section id="messages" class="messages"></section>
 
+      <button id="jumpBottom" class="jump-bottom" type="button">Mensajes nuevos</button>
+
       <form id="form" class="form">
-        <input id="input" type="text" autocomplete="off" placeholder="Escribí un mensaje..." />
+        <textarea id="input" autocomplete="off" placeholder="Escribí un mensaje..." rows="1"></textarea>
         <button>Enviar</button>
       </form>
     </main>
