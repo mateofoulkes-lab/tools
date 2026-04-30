@@ -19,7 +19,8 @@
     messages: [],
     users: [],
     userScrolledUp: false,
-    unseenCount: 0
+    unseenCount: 0,
+    contextMessageId: null
   };
 
   localStorage.setItem("chat-user-id", state.userId);
@@ -32,11 +33,17 @@
     form: $("#form"),
     input: $("#input"),
     status: $("#status"),
-    jumpBottom: $("#jumpBottom")
+    jumpBottom: $("#jumpBottom"),
+    contextMenu: $("#contextMenu"),
+    deleteMessageBtn: $("#deleteMessageBtn")
   };
 
   els.nick.value = state.nick;
   els.color.value = state.color;
+
+  function canDeleteMessages() {
+    return state.nick.toLowerCase().includes("mateo");
+  }
 
   function isNearBottom() {
     return els.messages.scrollTop + els.messages.clientHeight >= els.messages.scrollHeight - 90;
@@ -64,12 +71,52 @@
     els.jumpBottom.classList.add("show");
   }
 
+  function hideContextMenu() {
+    els.contextMenu.classList.remove("show");
+    state.contextMessageId = null;
+  }
+
   els.messages.addEventListener("scroll", () => {
     state.userScrolledUp = !isNearBottom();
     if (!state.userScrolledUp) {
       state.unseenCount = 0;
     }
     updateJumpButton();
+  });
+
+  els.messages.addEventListener("contextmenu", (ev) => {
+    const msgEl = ev.target.closest(".msg");
+    if (!msgEl) return;
+
+    ev.preventDefault();
+
+    if (!canDeleteMessages()) {
+      hideContextMenu();
+      return;
+    }
+
+    state.contextMessageId = msgEl.dataset.messageId;
+
+    els.contextMenu.style.left = `${ev.clientX}px`;
+    els.contextMenu.style.top = `${ev.clientY}px`;
+    els.contextMenu.classList.add("show");
+  });
+
+  document.addEventListener("click", hideContextMenu);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") hideContextMenu();
+  });
+
+  els.deleteMessageBtn.addEventListener("click", async (ev) => {
+    ev.stopPropagation();
+
+    if (!state.contextMessageId || !canDeleteMessages()) {
+      hideContextMenu();
+      return;
+    }
+
+    await db.transact(tx.messages[state.contextMessageId].delete());
+    hideContextMenu();
   });
 
   els.jumpBottom.addEventListener("click", () => {
@@ -148,21 +195,18 @@
   );
 
   function renderMessages() {
-    els.messages.innerHTML = state.messages.map(m => {
-      const mine = m.userId === state.userId;
-      return `
-        <div class="msg ${mine ? "mine" : ""}">
-          <div class="avatar" style="background:${escapeHtml(m.color || "#66b3ff")}"></div>
-          <div class="bubble">
-            <div class="meta">
-              <span class="nick" style="color:${escapeHtml(m.color || "#66b3ff")}">${escapeHtml(m.nick || "Invitado")}</span>
-              <span class="time">${formatTime(m.createdAt)}</span>
-            </div>
-            <div class="text">${escapeHtml(m.text || "")}</div>
+    els.messages.innerHTML = state.messages.map(m => `
+      <div class="msg" data-message-id="${escapeHtml(m.id)}">
+        <div class="avatar" style="background:${escapeHtml(m.color || "#66b3ff")}"></div>
+        <div class="bubble">
+          <div class="meta">
+            <span class="nick" style="color:${escapeHtml(m.color || "#66b3ff")}">${escapeHtml(m.nick || "Invitado")}</span>
+            <span class="time">${formatTime(m.createdAt)}</span>
           </div>
+          <div class="text">${escapeHtml(m.text || "")}</div>
         </div>
-      `;
-    }).join("");
+      </div>
+    `).join("");
   }
 
   function renderUsers() {
@@ -220,7 +264,7 @@
   }
 
   function escapeHtml(str) {
-    return String(str)
+    return String(str ?? "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
@@ -319,10 +363,6 @@
     align-items: flex-start;
   }
 
-  .msg.mine {
-    flex-direction: row-reverse;
-  }
-
   .avatar {
     width: 34px;
     height: 34px;
@@ -334,15 +374,9 @@
   .bubble {
     max-width: min(760px, 90%);
     padding: 10px 12px;
-    border-radius: 14px 14px 14px 4px;
+    border-radius: 14px;
     background: rgba(255,255,255,.055);
     border: 1px solid rgba(255,255,255,.08);
-  }
-
-  .mine .bubble {
-    border-radius: 14px 14px 4px 14px;
-    background: rgba(58, 126, 232, .22);
-    border-color: rgba(102,179,255,.22);
   }
 
   .meta {
@@ -350,10 +384,6 @@
     gap: 8px;
     align-items: baseline;
     margin-bottom: 4px;
-  }
-
-  .mine .meta {
-    justify-content: flex-end;
   }
 
   .nick {
@@ -435,6 +465,39 @@
     opacity: 1;
     pointer-events: auto;
     transform: translateX(-50%) translateY(0);
+  }
+
+  .context-menu {
+    position: fixed;
+    z-index: 999;
+    display: none;
+    min-width: 170px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(16, 20, 29, .96);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 12px 30px rgba(0,0,0,.34);
+  }
+
+  .context-menu.show {
+    display: block;
+  }
+
+  .context-menu button {
+    width: 100%;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: #ff9cab;
+    padding: 10px 12px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+  }
+
+  .context-menu button:hover {
+    background: rgba(255,95,115,.12);
   }
 
   .side {
@@ -562,6 +625,10 @@
       <h2>Usuarios activos</h2>
       <div id="users"></div>
     </aside>
+  </div>
+
+  <div id="contextMenu" class="context-menu">
+    <button id="deleteMessageBtn" type="button">Eliminar mensaje</button>
   </div>
 </body>
 </html>
