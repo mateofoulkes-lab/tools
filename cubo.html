@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>InstantDB Cube Controller</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0a0a0a;color:#eee;font-family:system-ui,sans-serif}
+#root{width:100%;height:100%}
+.screen,.controller{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.controller{background:#050505;align-items:stretch;overflow:auto}
+.panel{width:100%;max-width:560px;padding:16px;box-sizing:border-box}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+button{padding:10px 14px;font-size:15px;border:1px solid #3a3a3a;border-radius:10px;background:#1b1b1b;color:#f1f1f1;cursor:pointer}
+button.active{background:#3149d8;border-color:#6478ee}
+label{display:block;font-size:13px;color:#cfcfcf;margin-top:8px}
+.slider-row,.select-row{margin:8px 0}
+input[type=range],select{width:100%;margin-top:4px;background:#121212;color:#f1f1f1}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.section{margin-top:10px;padding-top:8px;border-top:1px solid #222}
+</style>
+</head>
+<body>
+<script>
+window.APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
+</script>
+<div id="root"></div>
+<script type="module">
+import React, {useEffect,useRef,useState} from "https://esm.sh/react@18.2.0";
+import {createRoot} from "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0";
+import {init} from "https://esm.sh/@instantdb/react?deps=react@18.2.0";
+
+const db = init({ appId: window.APP_ID });
+const room = db.room("cube-test", "main");
+const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.randomUUID());
+const MODE = detectMode();
+const AXIS_SOURCES = ["pitch","roll","yaw","alpha","beta","gamma"];
+
+function App(){
+  const publish = db.rooms.usePublishTopic(room, "rotation");
+  const canvasRef = useRef(null);
+  const rotTarget = useRef({x:0,y:0,z:0});
+  const rotRender = useRef({x:0,y:0,z:0});
+  const baseline = useRef(null);
+  const lastSend = useRef(0);
+  const rafRef = useRef(0);
+  const latestOrientation = useRef(null);
+  const motionYaw = useRef(0);
+  const motionYawReady = useRef(false);
+
+  const [ready,setReady] = useState(MODE === "screen");
+  const [invertX,setInvertX] = useStoredBool("cubeInvertX", false);
+  const [invertY,setInvertY] = useStoredBool("cubeInvertY", false);
+  const [invertZ,setInvertZ] = useStoredBool("cubeInvertZ", false);
+  const [deadX,setDeadX] = useStoredNumber("cubeDeadX", 1.0);
+  const [deadY,setDeadY] = useStoredNumber("cubeDeadY", 1.0);
+  const [deadZ,setDeadZ] = useStoredNumber("cubeDeadZ", 1.0);
+  const [smoothX,setSmoothX] = useStoredNumber("cubeSmoothX", 0.3);
+  const [smoothY,setSmoothY] = useStoredNumber("cubeSmoothY", 0.3);
+  const [smoothZ,setSmoothZ] = useStoredNumber("cubeSmoothZ", 0.3);
+  const [srcX,setSrcX] = useStoredString("cubeSrcX", "pitch");
+  const [srcY,setSrcY] = useStoredString("cubeSrcY", "yaw");
+  const [srcZ,setSrcZ] = useStoredString("cubeSrcZ", "roll");
+
+  const settingsRef = useRef(null);
+  settingsRef.current = {invertX,invertY,invertZ,deadX,deadY,deadZ,smoothX,smoothY,smoothZ,srcX,srcY,srcZ};
+
+  db.rooms.useTopicEffect(room, "rotation", (msg) => {
+    if (!msg || msg.clientId === CLIENT_ID || msg.type !== "rotation") return;
+    rotTarget.current = {
+      x: clamp(Number(msg.rotX || 0), -Math.PI, Math.PI),
+      y: clamp(Number(msg.rotY || 0), -Math.PI, Math.PI),
+      z: clamp(Number(msg.rotZ || 0), -Math.PI, Math.PI)
+    };
+  });
+
+  useEffect(() => {
+    if (MODE !== "screen") return;
+    const onResize = () => resizeCanvas(canvasRef.current);
+    onResize();
+    window.addEventListener("resize", onResize);
+    const loop = () => {
+      const alpha = 0.22;
+      rotRender.current.x += (rotTarget.current.x - rotRender.current.x) * alpha;
+      rotRender.current.y += (rotTarget.current.y - rotRender.current.y) * alpha;
+      rotRender.current.z += (rotTarget.current.z - rotRender.current.z) * alpha;
+      drawCube(canvasRef.current, rotRender.current);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  async function activateSensors(){
+    if (!window.isSecureContext) return;
+    if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+      const res = await DeviceOrientationEvent.requestPermission();
+      if (res !== "granted") return;
+    }
+    if (typeof DeviceMotionEvent?.requestPermission === "function") {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== "granted") return;
+    }
+    calibrateZero();
+    window.removeEventListener("deviceorientation", onOrientation, true);
+    window.removeEventListener("devicemotion", onMotion, true);
+    window.addEventListener("deviceorientation", onOrientation, true);
+    window.addEventListener("devicemotion", onMotion, true);
+    setReady(true);
+  }
+
+  function calibrateZero(){
+    const o = latestOrientation.current;
+    baseline.current = o ? {alpha:o.alphaDeg,beta:o.beta,gamma:o.gamma,yawMotion:motionYaw.current} : null;
+    motionYaw.current = 0;
+    motionYawReady.current = false;
+    rotTarget.current = {x:0,y:0,z:0};
+  }
+
+  function onOrientation(e){
+    latestOrientation.current = {
+      beta:Number(e.beta ?? 0),
+      gamma:Number(e.gamma ?? 0),
+      alphaDeg:Number(e.alpha ?? 0)
+    };
+    if (!baseline.current){
+      baseline.current = {
+        alpha:latestOrientation.current.alphaDeg,
+        beta:latestOrientation.current.beta,
+        gamma:latestOrientation.current.gamma,
+        yawMotion:motionYaw.current
+      };
+    }
+    sendCurrent();
+  }
+
+  function onMotion(e){
+    const rr = e.rotationRate;
+    const dt = clamp(Number(e.interval || 16.67) / 1000, 0.001, 0.1);
+    if (rr && Number.isFinite(rr.alpha)){
+      motionYaw.current += degToRad(rr.alpha) * dt;
+      motionYawReady.current = true;
+    }
+    sendCurrent();
+  }
+
+  function sendCurrent(){
+    const o = latestOrientation.current;
+    const b = baseline.current;
+    if (!o || !b) return;
+
+    const raw = {
+      alpha:degToRad(shortestAngleDeg(o.alphaDeg, b.alpha)),
+      beta:degToRad(o.beta - b.beta),
+      gamma:degToRad(o.gamma - b.gamma),
+      pitch:degToRad(o.beta - b.beta),
+      roll:degToRad(o.gamma - b.gamma),
+      yaw: motionYawReady.current ? (motionYaw.current - b.yawMotion) : degToRad(shortestAngleDeg(o.alphaDeg, b.alpha))
+    };
+
+    const cfg = settingsRef.current;
+    const t = {
+      x: axisValue(cfg.srcX, raw) * (cfg.invertX ? -1 : 1),
+      y: axisValue(cfg.srcY, raw) * (cfg.invertY ? -1 : 1),
+      z: axisValue(cfg.srcZ, raw) * (cfg.invertZ ? -1 : 1)
+    };
+
+    const prev = rotTarget.current;
+    const smoothed = {
+      x: applyAxisFilter(prev.x, t.x, cfg.deadX, cfg.smoothX),
+      y: applyAxisFilter(prev.y, t.y, cfg.deadY, cfg.smoothY),
+      z: applyAxisFilter(prev.z, t.z, cfg.deadZ, cfg.smoothZ)
+    };
+    rotTarget.current = smoothed;
+
+    const now = Date.now();
+    if (now - lastSend.current < 16) return;
+    lastSend.current = now;
+
+    publish({type:"rotation",rotX:smoothed.x,rotY:smoothed.y,rotZ:smoothed.z,sentAt:now,clientId:CLIENT_ID});
+  }
+
+  if (MODE === "controller"){
+    return React.createElement("div", {className:"controller"},
+      React.createElement("div", {className:"panel"},
+        React.createElement("div", {className:"actions"},
+          React.createElement("button", {onClick:activateSensors}, ready ? "Sensores activos" : "Activar sensores"),
+          React.createElement("button", {onClick:calibrateZero}, "Calibrate zero")
+        ),
+        React.createElement("div", {className:"section"},
+          React.createElement("button", {className:invertX?"active":"", onClick:()=>setInvertX(!invertX)}, "Invert X"),
+          React.createElement("button", {className:invertY?"active":"", onClick:()=>setInvertY(!invertY)}, "Invert Y"),
+          React.createElement("button", {className:invertZ?"active":"", onClick:()=>setInvertZ(!invertZ)}, "Invert Z")
+        ),
+        slider("Dead zone X", deadX, setDeadX, 0, 10, 0.5, "°"),
+        slider("Dead zone Y", deadY, setDeadY, 0, 10, 0.5, "°"),
+        slider("Dead zone Z", deadZ, setDeadZ, 0, 10, 0.5, "°"),
+        slider("Smoothing X", smoothX, setSmoothX, 0, 0.95, 0.05, ""),
+        slider("Smoothing Y", smoothY, setSmoothY, 0, 0.95, 0.05, ""),
+        slider("Smoothing Z", smoothZ, setSmoothZ, 0, 0.95, 0.05, ""),
+        selectAxis("Source rotX", srcX, setSrcX),
+        selectAxis("Source rotY", srcY, setSrcY),
+        selectAxis("Source rotZ", srcZ, setSrcZ)
+      )
+    );
+  }
+
+  return React.createElement("div", {className:"screen"}, React.createElement("canvas", {ref:canvasRef}));
+}
+
+function slider(title, value, setValue, min, max, step, suffix){
+  return React.createElement("div", {className:"slider-row"},
+    React.createElement("label", null, `${title}: ${Number(value).toFixed(step < 1 ? 2 : 1)}${suffix}`),
+    React.createElement("input", {type:"range", min:String(min), max:String(max), step:String(step), value:String(value), onChange:e=>setValue(Number(e.target.value))})
+  );
+}
+
+function selectAxis(title, value, setValue){
+  return React.createElement("div", {className:"select-row"},
+    React.createElement("label", null, title),
+    React.createElement("select", {value, onChange:e=>setValue(e.target.value)}, AXIS_SOURCES.map(s=>React.createElement("option", {key:s, value:s}, s)))
+  );
+}
+
+function axisValue(source, raw){ return clamp(raw[source] ?? 0, -Math.PI, Math.PI); }
+function applyAxisFilter(prev, target, deadDeg, smoothing){
+  const dead = degToRad(Number(deadDeg || 0));
+  if (Math.abs(target - prev) < dead) return prev;
+  const s = clamp(Number(smoothing || 0), 0, 0.95);
+  return prev + (target - prev) * (1 - s);
+}
+
+function drawCube(canvas, rot){
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h); ctx.fillStyle="#0a0a0a"; ctx.fillRect(0,0,w,h);
+  const size = Math.min(w,h) * 0.2;
+  const verts = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(v => rotateXYZ([v[0]*size,v[1]*size,v[2]*size], rot.x, rot.y, rot.z));
+  const pts = verts.map(v => project(v, w, h));
+  const faces = [[0,1,2,3,"rgba(103,132,255,0.20)"],[4,5,6,7,"rgba(103,132,255,0.34)"],[0,1,5,4,"rgba(103,132,255,0.18)"],[2,3,7,6,"rgba(103,132,255,0.28)"],[1,2,6,5,"rgba(103,132,255,0.24)"],[0,3,7,4,"rgba(103,132,255,0.16)"]].map(f=>({f,z:(verts[f[0]][2]+verts[f[1]][2]+verts[f[2]][2]+verts[f[3]][2])/4})).sort((a,b)=>a.z-b.z);
+  for (const {f} of faces){ ctx.beginPath(); ctx.moveTo(pts[f[0]].x, pts[f[0]].y); ctx.lineTo(pts[f[1]].x, pts[f[1]].y); ctx.lineTo(pts[f[2]].x, pts[f[2]].y); ctx.lineTo(pts[f[3]].x, pts[f[3]].y); ctx.closePath(); ctx.fillStyle=f[4]; ctx.fill(); }
+  const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  ctx.strokeStyle="#d7ddff"; ctx.lineWidth=Math.max(1.5, Math.min(w,h)*0.004);
+  for (const [a,b] of edges){ ctx.beginPath(); ctx.moveTo(pts[a].x,pts[a].y); ctx.lineTo(pts[b].x,pts[b].y); ctx.stroke(); }
+}
+function rotateXYZ([x,y,z], rx, ry, rz){ const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz); const y1=y*cx-z*sx, z1=y*sx+z*cx; const x2=x*cy+z1*sy, z2=-x*sy+z1*cy; return [x2*cz-y1*sz, x2*sz+y1*cz, z2]; }
+function project([x,y,z], w, h){ const d=Math.min(w,h)*1.2, s=d/(d-z); return {x:w/2+x*s,y:h/2+y*s}; }
+function resizeCanvas(canvas){ if(!canvas) return; const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1)); const w=Math.floor(window.innerWidth*dpr), h=Math.floor(window.innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){canvas.width=w; canvas.height=h;} }
+function detectMode(){ const p=new URLSearchParams(window.location.search); const forced=p.get("mode"); if(forced==="screen"||forced==="controller") return forced; const ua=navigator.userAgent||""; const mobileByUA=/Android|iPhone|iPad|iPod|Mobile/i.test(ua); const coarsePointer=window.matchMedia?.("(pointer: coarse)")?.matches; const smallScreen=Math.min(window.innerWidth,window.innerHeight)<800; return (mobileByUA||(coarsePointer&&smallScreen))?"controller":"screen"; }
+function shortestAngleDeg(a,b){ let d=(a-b)%360; if(d>180)d-=360; if(d<-180)d+=360; return d; }
+function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+function degToRad(d){ return d*Math.PI/180; }
+function useStoredBool(key, initial){ const [v,setV]=useState(()=>{const x=localStorage.getItem(key); return x===null?initial:x==="true";}); const set=n=>{localStorage.setItem(key,String(n)); setV(n);}; return [v,set]; }
+function useStoredNumber(key, initial){ const [v,setV]=useState(()=>{const x=Number(localStorage.getItem(key)); return Number.isFinite(x)?x:initial;}); const set=n=>{localStorage.setItem(key,String(n)); setV(n);}; return [v,set]; }
+function useStoredString(key, initial){ const [v,setV]=useState(()=>localStorage.getItem(key)||initial); const set=n=>{localStorage.setItem(key,n); setV(n);}; return [v,set]; }
+
+createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
