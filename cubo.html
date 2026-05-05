@@ -1,262 +1,254 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>InstantDB Cube Controller</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Cubo Calibración Sensores</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0a0a0a;color:#eee;font-family:system-ui,sans-serif}
-#root{width:100%;height:100%}
-.screen,.controller{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
-.controller{background:#050505;align-items:stretch;overflow:auto}
-.panel{width:100%;max-width:560px;padding:16px;box-sizing:border-box}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-button{padding:10px 14px;font-size:15px;border:1px solid #3a3a3a;border-radius:10px;background:#1b1b1b;color:#f1f1f1;cursor:pointer}
-button.active{background:#3149d8;border-color:#6478ee}
-label{display:block;font-size:13px;color:#cfcfcf;margin-top:8px}
-.slider-row,.select-row{margin:8px 0}
-input[type=range],select{width:100%;margin-top:4px;background:#121212;color:#f1f1f1}
-canvas{display:block;width:100%;height:100%;touch-action:none}
-.section{margin-top:10px;padding-top:8px;border-top:1px solid #222}
+html,body{margin:0;height:100%;background:#0b0b0d;color:#ececf2;font-family:system-ui,sans-serif}
+#root{height:100%}
+.screen{height:100%;display:flex}
+.canvasWrap{flex:1;min-width:0;display:flex;align-items:center;justify-content:center}
+canvas{width:100%;height:100%;display:block}
+.panel{width:390px;max-width:48vw;background:#11131a;border-left:1px solid #22293a;overflow:auto;padding:12px;box-sizing:border-box}
+button,select,input{font:inherit}
+button{background:#1f2740;color:#fff;border:1px solid #4d5d9b;border-radius:10px;padding:8px 12px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.card{border:1px solid #2a3349;border-radius:10px;padding:10px;margin-bottom:10px;background:#141a29}
+h3{margin:0 0 8px;font-size:14px;color:#bcd0ff}
+.small{font-size:12px;color:#b8bfd3}
+.val{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.35}
+label{display:block;font-size:12px;margin:8px 0 4px;color:#ced6ef}
+.warn{color:#ffb47a;font-size:12px;font-weight:600}
+.ok{color:#9ee4af;font-size:12px}
+.ctrl{height:100%;overflow:auto;background:#0d0f16;padding:14px;box-sizing:border-box}
 </style>
 </head>
 <body>
-<script>
-window.APP_ID = "b1444761-2c88-4438-ae19-4c29c727d227";
-</script>
+<script>window.APP_ID="b1444761-2c88-4438-ae19-4c29c727d227";</script>
 <div id="root"></div>
 <script type="module">
-import React, {useEffect,useRef,useState} from "https://esm.sh/react@18.2.0";
+import React,{useEffect,useRef,useState} from "https://esm.sh/react@18.2.0";
 import {createRoot} from "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0";
 import {init} from "https://esm.sh/@instantdb/react?deps=react@18.2.0";
 
-const db = init({ appId: window.APP_ID });
-const room = db.room("cube-test", "main");
-const CLIENT_ID = localStorage.clientId ?? (localStorage.clientId = crypto.randomUUID());
-const MODE = detectMode();
-const AXIS_SOURCES = ["pitch","roll","yaw","alpha","beta","gamma"];
+const db=init({appId:window.APP_ID});
+const room=db.room("cube-test","main");
+const CLIENT_ID=localStorage.clientId??(localStorage.clientId=crypto.randomUUID());
+const MODE=detectMode();
+const KEYS=["alpha","beta","gamma","agx","agy","agz","ax","ay","az","rra","rrb","rrg"];
 
 function App(){
-  const publish = db.rooms.usePublishTopic(room, "rotation");
-  const canvasRef = useRef(null);
-  const rotTarget = useRef({x:0,y:0,z:0});
-  const rotRender = useRef({x:0,y:0,z:0});
-  const baseline = useRef(null);
-  const lastSend = useRef(0);
-  const rafRef = useRef(0);
-  const latestOrientation = useRef(null);
-  const motionYaw = useRef(0);
-  const motionYawReady = useRef(false);
+  const publish=db.rooms.usePublishTopic(room,"rotation");
+  const canvasRef=useRef(null);
+  const rotTarget=useRef({x:0,y:0,z:0});
+  const rotDraw=useRef({x:0,y:0,z:0});
+  const raf=useRef(0);
+  const lastSend=useRef(0);
+  const sensor=useRef(defaultSensorState());
 
-  const [ready,setReady] = useState(MODE === "screen");
-  const [invertX,setInvertX] = useStoredBool("cubeInvertX", false);
-  const [invertY,setInvertY] = useStoredBool("cubeInvertY", false);
-  const [invertZ,setInvertZ] = useStoredBool("cubeInvertZ", false);
-  const [deadX,setDeadX] = useStoredNumber("cubeDeadX", 1.0);
-  const [deadY,setDeadY] = useStoredNumber("cubeDeadY", 1.0);
-  const [deadZ,setDeadZ] = useStoredNumber("cubeDeadZ", 1.0);
-  const [smoothX,setSmoothX] = useStoredNumber("cubeSmoothX", 0.3);
-  const [smoothY,setSmoothY] = useStoredNumber("cubeSmoothY", 0.3);
-  const [smoothZ,setSmoothZ] = useStoredNumber("cubeSmoothZ", 0.3);
-  const [srcX,setSrcX] = useStoredString("cubeSrcX", "pitch");
-  const [srcY,setSrcY] = useStoredString("cubeSrcY", "yaw");
-  const [srcZ,setSrcZ] = useStoredString("cubeSrcZ", "roll");
+  const [active,setActive]=useState(MODE==="screen");
+  const [step,setStep]=useState("idle");
+  const [status,setStatus]=useState("Esperando activación");
+  const [warning,setWarning]=useState("");
+  const [rawUI,setRawUI]=useState(sensor.current.raw);
+  const [cfgUI,setCfgUI]=useState(loadCfg());
 
-  const settingsRef = useRef(null);
-  settingsRef.current = {invertX,invertY,invertZ,deadX,deadY,deadZ,smoothX,smoothY,smoothZ,srcX,srcY,srcZ};
+  const cfgRef=useRef(cfgUI); cfgRef.current=cfgUI;
 
-  db.rooms.useTopicEffect(room, "rotation", (msg) => {
-    if (!msg || msg.clientId === CLIENT_ID || msg.type !== "rotation") return;
-    rotTarget.current = {
-      x: clamp(Number(msg.rotX || 0), -Math.PI, Math.PI),
-      y: clamp(Number(msg.rotY || 0), -Math.PI, Math.PI),
-      z: clamp(Number(msg.rotZ || 0), -Math.PI, Math.PI)
-    };
+  db.rooms.useTopicEffect(room,"rotation",(m)=>{
+    if(!m||m.clientId===CLIENT_ID||m.type!=="rotation")return;
+    rotTarget.current={x:clampNum(m.rotX),y:clampNum(m.rotY),z:clampNum(m.rotZ)};
   });
 
-  useEffect(() => {
-    if (MODE !== "screen") return;
-    const onResize = () => resizeCanvas(canvasRef.current);
-    onResize();
-    window.addEventListener("resize", onResize);
-    const loop = () => {
-      const alpha = 0.22;
-      rotRender.current.x += (rotTarget.current.x - rotRender.current.x) * alpha;
-      rotRender.current.y += (rotTarget.current.y - rotRender.current.y) * alpha;
-      rotRender.current.z += (rotTarget.current.z - rotRender.current.z) * alpha;
-      drawCube(canvasRef.current, rotRender.current);
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  useEffect(()=>{ if(MODE!=="screen") return;
+    const onResize=()=>resizeCanvas(canvasRef.current); onResize(); window.addEventListener("resize",onResize);
+    const loop=()=>{const a=0.2; rotDraw.current.x+= (rotTarget.current.x-rotDraw.current.x)*a; rotDraw.current.y+=(rotTarget.current.y-rotDraw.current.y)*a; rotDraw.current.z+=(rotTarget.current.z-rotDraw.current.z)*a; drawPhone(canvasRef.current,rotDraw.current); raf.current=requestAnimationFrame(loop);};
+    raf.current=requestAnimationFrame(loop);
+    return ()=>{window.removeEventListener("resize",onResize);cancelAnimationFrame(raf.current);};
+  },[]);
+
+  useEffect(()=>{ if(MODE!=="controller") return; const t=setInterval(()=>setRawUI({...sensor.current.raw}),120); return ()=>clearInterval(t);},[]);
 
   async function activateSensors(){
-    if (!window.isSecureContext) return;
-    if (typeof DeviceOrientationEvent?.requestPermission === "function") {
-      const res = await DeviceOrientationEvent.requestPermission();
-      if (res !== "granted") return;
+    if(!window.isSecureContext){setStatus("Necesita HTTPS");return;}
+    if(typeof DeviceOrientationEvent?.requestPermission==="function"){const r=await DeviceOrientationEvent.requestPermission(); if(r!=="granted"){setStatus("Permiso orientación denegado");return;}}
+    if(typeof DeviceMotionEvent?.requestPermission==="function"){const r=await DeviceMotionEvent.requestPermission(); if(r!=="granted"){setStatus("Permiso movimiento denegado");return;}}
+    window.removeEventListener("deviceorientation",onOrientation,true); window.removeEventListener("devicemotion",onMotion,true);
+    window.addEventListener("deviceorientation",onOrientation,true); window.addEventListener("devicemotion",onMotion,true);
+    setActive(true); setStatus("Sensores activos");
+  }
+
+  function onOrientation(e){sensor.current.raw.alpha=num(e.alpha); sensor.current.raw.beta=num(e.beta); sensor.current.raw.gamma=num(e.gamma); tick();}
+  function onMotion(e){const ag=e.accelerationIncludingGravity||{}; const a=e.acceleration||{}; const rr=e.rotationRate||{};
+    sensor.current.raw.agx=num(ag.x); sensor.current.raw.agy=num(ag.y); sensor.current.raw.agz=num(ag.z);
+    sensor.current.raw.ax=num(a.x); sensor.current.raw.ay=num(a.y); sensor.current.raw.az=num(a.z);
+    sensor.current.raw.rra=num(rr.alpha); sensor.current.raw.rrb=num(rr.beta); sensor.current.raw.rrg=num(rr.gamma);
+    tick();
+  }
+
+  function tick(){
+    runCalibrationStep();
+    applyMappedRotation();
+  }
+
+  function runCalibrationStep(){
+    const c=sensor.current.cal;
+    if(!c.running) return;
+    c.samples.push({...sensor.current.raw,time:performance.now()});
+    const elapsed=performance.now()-c.t0;
+    if(elapsed < c.durationMs) return;
+
+    if(c.phase===1){
+      c.center=average(c.samples); c.running=false; setStatus("Paso 1 listo"); setStep("step2");
+    }else{
+      const amps=amplitudes(c.samples,c.center);
+      const pick=bestSensor(amps,c.used);
+      c.map[c.axis]={sensor:pick.key,sign:pick.sign,center:c.center[pick.key]||0,strength:pick.strength};
+      c.used.push(pick.key);
+      c.running=false;
+      if(c.phase===2){setStatus("Paso 2 listo"); setStep("step3");}
+      if(c.phase===3){setStatus("Paso 3 listo"); setStep("step4");}
+      if(c.phase===4){
+        setStatus("Calibración completa"); setStep("done");
+        const next={...cfgRef.current,mapping:c.map};
+        saveCfg(next); setCfgUI(next);
+        const used=[c.map.pitch.sensor,c.map.roll.sensor,c.map.yaw.sensor];
+        const rep=(new Set(used)).size<used.length; setWarning(rep?"posible mezcla de ejes":"");
+      }
     }
-    if (typeof DeviceMotionEvent?.requestPermission === "function") {
-      const res = await DeviceMotionEvent.requestPermission();
-      if (res !== "granted") return;
-    }
-    calibrateZero();
-    window.removeEventListener("deviceorientation", onOrientation, true);
-    window.removeEventListener("devicemotion", onMotion, true);
-    window.addEventListener("deviceorientation", onOrientation, true);
-    window.addEventListener("devicemotion", onMotion, true);
-    setReady(true);
   }
 
-  function calibrateZero(){
-    const o = latestOrientation.current;
-    baseline.current = o ? {alpha:o.alphaDeg,beta:o.beta,gamma:o.gamma,yawMotion:motionYaw.current} : null;
-    motionYaw.current = 0;
-    motionYawReady.current = false;
-    rotTarget.current = {x:0,y:0,z:0};
+  function startPhase(phase,axis,durationMs){
+    sensor.current.cal={...sensor.current.cal,running:true,phase,axis,durationMs,t0:performance.now(),samples:[]};
+    setStatus("Midiendo...");
   }
 
-  function onOrientation(e){
-    latestOrientation.current = {
-      beta:Number(e.beta ?? 0),
-      gamma:Number(e.gamma ?? 0),
-      alphaDeg:Number(e.alpha ?? 0)
+  function beginStep1(){setStep("step1");startPhase(1,"center",1000);}
+  function beginStep2(){setStep("step2run");startPhase(2,"pitch",2000);}
+  function beginStep3(){setStep("step3run");startPhase(3,"roll",2000);}
+  function beginStep4(){setStep("step4run");startPhase(4,"yaw",2000);}
+
+  function applyMappedRotation(){
+    const cfg=cfgRef.current; const raw=sensor.current.raw; const map=cfg.mapping;
+    if(!map?.pitch?.sensor||!map?.roll?.sensor||!map?.yaw?.sensor) return;
+    const target={
+      x:axisFrom(raw,map.pitch,cfg.invPitch,cfg.sensPitch),
+      y:axisFrom(raw,map.yaw,cfg.invYaw,cfg.sensYaw),
+      z:axisFrom(raw,map.roll,cfg.invRoll,cfg.sensRoll)
     };
-    if (!baseline.current){
-      baseline.current = {
-        alpha:latestOrientation.current.alphaDeg,
-        beta:latestOrientation.current.beta,
-        gamma:latestOrientation.current.gamma,
-        yawMotion:motionYaw.current
-      };
-    }
-    sendCurrent();
+    const prev=rotTarget.current;
+    const next={
+      x:filterAxis(prev.x,target.x,cfg.deadPitch,cfg.smoothPitch),
+      y:filterAxis(prev.y,target.y,cfg.deadYaw,cfg.smoothYaw),
+      z:filterAxis(prev.z,target.z,cfg.deadRoll,cfg.smoothRoll)
+    };
+    rotTarget.current=next;
+    const now=Date.now(); if(now-lastSend.current<16) return; lastSend.current=now;
+    publish({type:"rotation",rotX:next.x,rotY:next.y,rotZ:next.z,sentAt:now,clientId:CLIENT_ID});
   }
 
-  function onMotion(e){
-    const rr = e.rotationRate;
-    const dt = clamp(Number(e.interval || 16.67) / 1000, 0.001, 0.1);
-    if (rr && Number.isFinite(rr.alpha)){
-      motionYaw.current += degToRad(rr.alpha) * dt;
-      motionYawReady.current = true;
-    }
-    sendCurrent();
-  }
+  function updateCfg(patch){const n={...cfgRef.current,...patch}; cfgRef.current=n; setCfgUI(n); saveCfg(n);}
+  function resetAll(){const n=defaultCfg(); sensor.current.cal=defaultCal(); cfgRef.current=n; setCfgUI(n); saveCfg(n); setStep("idle"); setStatus("Reset listo"); setWarning("");}
+  async function copyCfg(){await navigator.clipboard?.writeText(JSON.stringify(cfgRef.current,null,2)); setStatus("Configuración copiada");}
 
-  function sendCurrent(){
-    const o = latestOrientation.current;
-    const b = baseline.current;
-    if (!o || !b) return;
-
-    const raw = {
-      alpha:degToRad(shortestAngleDeg(o.alphaDeg, b.alpha)),
-      beta:degToRad(o.beta - b.beta),
-      gamma:degToRad(o.gamma - b.gamma),
-      pitch:degToRad(o.beta - b.beta),
-      roll:degToRad(o.gamma - b.gamma),
-      yaw: motionYawReady.current ? (motionYaw.current - b.yawMotion) : degToRad(shortestAngleDeg(o.alphaDeg, b.alpha))
-    };
-
-    const cfg = settingsRef.current;
-    const t = {
-      x: axisValue(cfg.srcX, raw) * (cfg.invertX ? -1 : 1),
-      y: axisValue(cfg.srcY, raw) * (cfg.invertY ? -1 : 1),
-      z: axisValue(cfg.srcZ, raw) * (cfg.invertZ ? -1 : 1)
-    };
-
-    const prev = rotTarget.current;
-    const smoothed = {
-      x: applyAxisFilter(prev.x, t.x, cfg.deadX, cfg.smoothX),
-      y: applyAxisFilter(prev.y, t.y, cfg.deadY, cfg.smoothY),
-      z: applyAxisFilter(prev.z, t.z, cfg.deadZ, cfg.smoothZ)
-    };
-    rotTarget.current = smoothed;
-
-    const now = Date.now();
-    if (now - lastSend.current < 16) return;
-    lastSend.current = now;
-
-    publish({type:"rotation",rotX:smoothed.x,rotY:smoothed.y,rotZ:smoothed.z,sentAt:now,clientId:CLIENT_ID});
-  }
-
-  if (MODE === "controller"){
-    return React.createElement("div", {className:"controller"},
-      React.createElement("div", {className:"panel"},
-        React.createElement("div", {className:"actions"},
-          React.createElement("button", {onClick:activateSensors}, ready ? "Sensores activos" : "Activar sensores"),
-          React.createElement("button", {onClick:calibrateZero}, "Calibrate zero")
-        ),
-        React.createElement("div", {className:"section"},
-          React.createElement("button", {className:invertX?"active":"", onClick:()=>setInvertX(!invertX)}, "Invert X"),
-          React.createElement("button", {className:invertY?"active":"", onClick:()=>setInvertY(!invertY)}, "Invert Y"),
-          React.createElement("button", {className:invertZ?"active":"", onClick:()=>setInvertZ(!invertZ)}, "Invert Z")
-        ),
-        slider("Dead zone X", deadX, setDeadX, 0, 10, 0.5, "°"),
-        slider("Dead zone Y", deadY, setDeadY, 0, 10, 0.5, "°"),
-        slider("Dead zone Z", deadZ, setDeadZ, 0, 10, 0.5, "°"),
-        slider("Smoothing X", smoothX, setSmoothX, 0, 0.95, 0.05, ""),
-        slider("Smoothing Y", smoothY, setSmoothY, 0, 0.95, 0.05, ""),
-        slider("Smoothing Z", smoothZ, setSmoothZ, 0, 0.95, 0.05, ""),
-        selectAxis("Source rotX", srcX, setSrcX),
-        selectAxis("Source rotY", srcY, setSrcY),
-        selectAxis("Source rotZ", srcZ, setSrcZ)
-      )
+  if(MODE==="controller"){
+    const m=cfgUI.mapping||{};
+    return React.createElement("div",{className:"ctrl"},
+      React.createElement("div",{className:"card"},
+        React.createElement("h3",null,"Estado"),
+        React.createElement("div",{className:"small"},status), warning?React.createElement("div",{className:"warn"},warning):React.createElement("div",{className:"ok"},"sin mezcla aparente"),
+        React.createElement("div",{className:"row",style:{marginTop:"8px"}},
+          React.createElement("button",{onClick:activateSensors},active?"Sensores activos":"Activar sensores"),
+          React.createElement("button",{onClick:beginStep1,disabled:!active},"Recalibrar"),
+          React.createElement("button",{onClick:copyCfg},"Copiar configuración"),
+          React.createElement("button",{onClick:resetAll},"Reset")
+        )
+      ),
+      React.createElement("div",{className:"card"},
+        React.createElement("h3",null,"Calibración por pasos"),
+        React.createElement("div",{className:"small"},"1) Dejá el celular quieto"), React.createElement("button",{onClick:beginStep1,disabled:!active},"Paso 1 (1s)"),
+        React.createElement("div",{className:"small",style:{marginTop:"8px"}},"2) Mové nariz arriba/abajo"), React.createElement("button",{onClick:beginStep2,disabled:step!=="step2"&&step!=="done"},"Paso 2 (2s)"),
+        React.createElement("div",{className:"small",style:{marginTop:"8px"}},"3) Incliná izquierda/derecha"), React.createElement("button",{onClick:beginStep3,disabled:step!=="step3"&&step!=="done"},"Paso 3 (2s)"),
+        React.createElement("div",{className:"small",style:{marginTop:"8px"}},"4) Rotá celular plano"), React.createElement("button",{onClick:beginStep4,disabled:step!=="step4"&&step!=="done"},"Paso 4 (2s)"),
+        React.createElement("div",{className:"val",style:{marginTop:"10px"}},
+          `pitch = ${m.pitch?.sensor||"-"} ${signTxt(m.pitch?.sign)} centro:${fmt(m.pitch?.center)}\n`+
+          `roll  = ${m.roll?.sensor||"-"} ${signTxt(m.roll?.sign)} centro:${fmt(m.roll?.center)}\n`+
+          `yaw   = ${m.yaw?.sensor||"-"} ${signTxt(m.yaw?.sign)} centro:${fmt(m.yaw?.center)}`
+        )
+      ),
+      React.createElement("div",{className:"card"},React.createElement("h3",null,"Ajustes"),
+        slider("Dead zone pitch (°)",cfgUI.deadPitch,v=>updateCfg({deadPitch:v}),0,10,0.5),
+        slider("Dead zone roll (°)",cfgUI.deadRoll,v=>updateCfg({deadRoll:v}),0,10,0.5),
+        slider("Dead zone yaw (°)",cfgUI.deadYaw,v=>updateCfg({deadYaw:v}),0,10,0.5),
+        slider("Smoothing pitch",cfgUI.smoothPitch,v=>updateCfg({smoothPitch:v}),0,0.95,0.05),
+        slider("Smoothing roll",cfgUI.smoothRoll,v=>updateCfg({smoothRoll:v}),0,0.95,0.05),
+        slider("Smoothing yaw",cfgUI.smoothYaw,v=>updateCfg({smoothYaw:v}),0,0.95,0.05),
+        slider("Sensibilidad pitch",cfgUI.sensPitch,v=>updateCfg({sensPitch:v}),0.2,3,0.1),
+        slider("Sensibilidad roll",cfgUI.sensRoll,v=>updateCfg({sensRoll:v}),0.2,3,0.1),
+        slider("Sensibilidad yaw",cfgUI.sensYaw,v=>updateCfg({sensYaw:v}),0.2,3,0.1),
+        React.createElement("div",{className:"row"},
+          tgl("Invertir pitch",cfgUI.invPitch,()=>updateCfg({invPitch:!cfgUI.invPitch})),
+          tgl("Invertir roll",cfgUI.invRoll,()=>updateCfg({invRoll:!cfgUI.invRoll})),
+          tgl("Invertir yaw",cfgUI.invYaw,()=>updateCfg({invYaw:!cfgUI.invYaw}))
+        )
+      ),
+      React.createElement("div",{className:"card"},React.createElement("h3",null,"Sensores crudos"),rawTable(rawUI))
     );
   }
 
-  return React.createElement("div", {className:"screen"}, React.createElement("canvas", {ref:canvasRef}));
+  return React.createElement("div",{className:"screen"},React.createElement("div",{className:"canvasWrap"},React.createElement("canvas",{ref:canvasRef})));
 }
 
-function slider(title, value, setValue, min, max, step, suffix){
-  return React.createElement("div", {className:"slider-row"},
-    React.createElement("label", null, `${title}: ${Number(value).toFixed(step < 1 ? 2 : 1)}${suffix}`),
-    React.createElement("input", {type:"range", min:String(min), max:String(max), step:String(step), value:String(value), onChange:e=>setValue(Number(e.target.value))})
-  );
+function drawPhone(canvas,rot){if(!canvas)return;const ctx=canvas.getContext("2d");const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle="#090b11";ctx.fillRect(0,0,w,h);
+  const sx=Math.min(w,h)*0.13, sy=Math.min(w,h)*0.24, sz=Math.min(w,h)*0.03;
+  const v=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(p=>rotXYZ([p[0]*sx,p[1]*sy,p[2]*sz],rot.x,rot.y,rot.z));
+  const p=v.map(q=>proj(q,w,h));
+  const faces=[[0,1,2,3,"#2d385c"],[4,5,6,7,"#1e253d"],[0,1,5,4,"#3b466e"],[2,3,7,6,"#323d60"],[1,2,6,5,"#222b49"],[0,3,7,4,"#293154"]].map(f=>({f,z:(v[f[0]][2]+v[f[1]][2]+v[f[2]][2]+v[f[3]][2])/4})).sort((a,b)=>a.z-b.z);
+  for(const {f} of faces){ctx.beginPath();ctx.moveTo(p[f[0]].x,p[f[0]].y);ctx.lineTo(p[f[1]].x,p[f[1]].y);ctx.lineTo(p[f[2]].x,p[f[2]].y);ctx.lineTo(p[f[3]].x,p[f[3]].y);ctx.closePath();ctx.fillStyle=f[4];ctx.fill();}
+  // pantalla frontal + flecha "arriba"
+  const front=[0,1,2,3]; ctx.beginPath(); ctx.moveTo(p[front[0]].x,p[front[0]].y); ctx.lineTo(p[front[1]].x,p[front[1]].y); ctx.lineTo(p[front[2]].x,p[front[2]].y); ctx.lineTo(p[front[3]].x,p[front[3]].y); ctx.closePath(); ctx.fillStyle="rgba(30,170,255,0.20)"; ctx.fill();
+  const topMid=mid(p[0],p[1]), botMid=mid(p[3],p[2]); const cx=(topMid.x+botMid.x)/2, cy=(topMid.y+botMid.y)/2; const vx=topMid.x-botMid.x, vy=topMid.y-botMid.y; const len=Math.hypot(vx,vy)||1; const ux=vx/len, uy=vy/len;
+  ctx.strokeStyle="#99e6ff"; ctx.lineWidth=Math.max(2,Math.min(w,h)*0.004); ctx.beginPath(); ctx.moveTo(cx-ux*28,cy-uy*28); ctx.lineTo(cx+ux*22,cy+uy*22); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+ux*22,cy+uy*22); ctx.lineTo(cx+ux*10-uy*8,cy+uy*10+ux*8); ctx.lineTo(cx+ux*10+uy*8,cy+uy*10-ux*8); ctx.closePath(); ctx.fillStyle="#99e6ff"; ctx.fill();
+  const e=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]; ctx.strokeStyle="#d8e0ff";ctx.lineWidth=Math.max(1.2,Math.min(w,h)*0.0035); for(const [a,b] of e){ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke();}
 }
 
-function selectAxis(title, value, setValue){
-  return React.createElement("div", {className:"select-row"},
-    React.createElement("label", null, title),
-    React.createElement("select", {value, onChange:e=>setValue(e.target.value)}, AXIS_SOURCES.map(s=>React.createElement("option", {key:s, value:s}, s)))
-  );
+function rawTable(r){return React.createElement("div",{className:"val"},
+`alpha: ${fmt(r.alpha)}   beta: ${fmt(r.beta)}   gamma: ${fmt(r.gamma)}\n`+
+`aG.x: ${fmt(r.agx)}  aG.y: ${fmt(r.agy)}  aG.z: ${fmt(r.agz)}\n`+
+`a.x:  ${fmt(r.ax)}   a.y:  ${fmt(r.ay)}   a.z:  ${fmt(r.az)}\n`+
+`rr.a: ${fmt(r.rra)}  rr.b: ${fmt(r.rrb)}  rr.g: ${fmt(r.rrg)}`
+);}
+function slider(t,v,set,min,max,step){return React.createElement("div",null,React.createElement("label",null,`${t}: ${Number(v).toFixed(step<1?2:1)}`),React.createElement("input",{type:"range",min,max,step,value:v,onChange:e=>set(Number(e.target.value))}));}
+function tgl(t,on,click){return React.createElement("button",{onClick:click,style:on?{background:"#2d4fb9"}:{}},t);}
+
+function axisFrom(raw,m,inv,sens){const s=(m?.sign??1)*(inv?-1:1);const v=((raw[m.sensor]??0)-(m.center??0))*s*sens;return clamp(v*Math.PI/180,-Math.PI,Math.PI);}
+function filterAxis(prev,target,deadDeg,smooth){const dead=(deadDeg||0)*Math.PI/180; if(Math.abs(target-prev)<dead) return prev; const a=1-clamp(smooth,0,0.95); return prev+(target-prev)*a;}
+function average(samples){const out={}; for(const k of KEYS) out[k]=0; if(!samples.length) return out; for(const s of samples){for(const k of KEYS) out[k]+=num(s[k]);} for(const k of KEYS) out[k]/=samples.length; return out;}
+function amplitudes(samples,c){const amp={}; for(const k of KEYS){let mn=1e9,mx=-1e9; for(const s of samples){const d=num(s[k])-num(c[k]); if(d<mn)mn=d; if(d>mx)mx=d;} amp[k]={range:mx-mn,mean:((mx+mn)/2),mx,mn};} return amp;}
+function bestSensor(amp,used){let best={key:"beta",strength:-1,sign:1}; for(const k of KEYS){const strength=amp[k].range; if(strength>best.strength && strength>0.1) best={key:k,strength,sign:amp[k].mean>=0?1:-1};}
+  if(used.includes(best.key)){let alt=null; for(const k of KEYS){if(used.includes(k)) continue; const s=amp[k].range; if(s>best.strength*0.65 && (!alt||s>alt.strength)) alt={key:k,strength:s,sign:amp[k].mean>=0?1:-1};} if(alt) best=alt;}
+  return best;
 }
 
-function axisValue(source, raw){ return clamp(raw[source] ?? 0, -Math.PI, Math.PI); }
-function applyAxisFilter(prev, target, deadDeg, smoothing){
-  const dead = degToRad(Number(deadDeg || 0));
-  if (Math.abs(target - prev) < dead) return prev;
-  const s = clamp(Number(smoothing || 0), 0, 0.95);
-  return prev + (target - prev) * (1 - s);
-}
-
-function drawCube(canvas, rot){
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h); ctx.fillStyle="#0a0a0a"; ctx.fillRect(0,0,w,h);
-  const size = Math.min(w,h) * 0.2;
-  const verts = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(v => rotateXYZ([v[0]*size,v[1]*size,v[2]*size], rot.x, rot.y, rot.z));
-  const pts = verts.map(v => project(v, w, h));
-  const faces = [[0,1,2,3,"rgba(103,132,255,0.20)"],[4,5,6,7,"rgba(103,132,255,0.34)"],[0,1,5,4,"rgba(103,132,255,0.18)"],[2,3,7,6,"rgba(103,132,255,0.28)"],[1,2,6,5,"rgba(103,132,255,0.24)"],[0,3,7,4,"rgba(103,132,255,0.16)"]].map(f=>({f,z:(verts[f[0]][2]+verts[f[1]][2]+verts[f[2]][2]+verts[f[3]][2])/4})).sort((a,b)=>a.z-b.z);
-  for (const {f} of faces){ ctx.beginPath(); ctx.moveTo(pts[f[0]].x, pts[f[0]].y); ctx.lineTo(pts[f[1]].x, pts[f[1]].y); ctx.lineTo(pts[f[2]].x, pts[f[2]].y); ctx.lineTo(pts[f[3]].x, pts[f[3]].y); ctx.closePath(); ctx.fillStyle=f[4]; ctx.fill(); }
-  const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-  ctx.strokeStyle="#d7ddff"; ctx.lineWidth=Math.max(1.5, Math.min(w,h)*0.004);
-  for (const [a,b] of edges){ ctx.beginPath(); ctx.moveTo(pts[a].x,pts[a].y); ctx.lineTo(pts[b].x,pts[b].y); ctx.stroke(); }
-}
-function rotateXYZ([x,y,z], rx, ry, rz){ const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz); const y1=y*cx-z*sx, z1=y*sx+z*cx; const x2=x*cy+z1*sy, z2=-x*sy+z1*cy; return [x2*cz-y1*sz, x2*sz+y1*cz, z2]; }
-function project([x,y,z], w, h){ const d=Math.min(w,h)*1.2, s=d/(d-z); return {x:w/2+x*s,y:h/2+y*s}; }
-function resizeCanvas(canvas){ if(!canvas) return; const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1)); const w=Math.floor(window.innerWidth*dpr), h=Math.floor(window.innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){canvas.width=w; canvas.height=h;} }
-function detectMode(){ const p=new URLSearchParams(window.location.search); const forced=p.get("mode"); if(forced==="screen"||forced==="controller") return forced; const ua=navigator.userAgent||""; const mobileByUA=/Android|iPhone|iPad|iPod|Mobile/i.test(ua); const coarsePointer=window.matchMedia?.("(pointer: coarse)")?.matches; const smallScreen=Math.min(window.innerWidth,window.innerHeight)<800; return (mobileByUA||(coarsePointer&&smallScreen))?"controller":"screen"; }
-function shortestAngleDeg(a,b){ let d=(a-b)%360; if(d>180)d-=360; if(d<-180)d+=360; return d; }
-function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
-function degToRad(d){ return d*Math.PI/180; }
-function useStoredBool(key, initial){ const [v,setV]=useState(()=>{const x=localStorage.getItem(key); return x===null?initial:x==="true";}); const set=n=>{localStorage.setItem(key,String(n)); setV(n);}; return [v,set]; }
-function useStoredNumber(key, initial){ const [v,setV]=useState(()=>{const x=Number(localStorage.getItem(key)); return Number.isFinite(x)?x:initial;}); const set=n=>{localStorage.setItem(key,String(n)); setV(n);}; return [v,set]; }
-function useStoredString(key, initial){ const [v,setV]=useState(()=>localStorage.getItem(key)||initial); const set=n=>{localStorage.setItem(key,n); setV(n);}; return [v,set]; }
+function defaultCfg(){return {deadPitch:1,deadRoll:1,deadYaw:1,smoothPitch:.35,smoothRoll:.35,smoothYaw:.35,sensPitch:1,sensRoll:1,sensYaw:1,invPitch:false,invRoll:false,invYaw:false,mapping:{pitch:{},roll:{},yaw:{}}};}
+function loadCfg(){try{return {...defaultCfg(),...JSON.parse(localStorage.cuboCfg||"{}")};}catch{return defaultCfg();}}
+function saveCfg(c){localStorage.cuboCfg=JSON.stringify(c);} 
+function defaultSensorState(){return {raw:{alpha:0,beta:0,gamma:0,agx:0,agy:0,agz:0,ax:0,ay:0,az:0,rra:0,rrb:0,rrg:0},cal:defaultCal()};}
+function defaultCal(){return {running:false,phase:0,axis:"",durationMs:0,t0:0,samples:[],center:null,map:{pitch:{},roll:{},yaw:{}},used:[]};}
+function detectMode(){const p=new URLSearchParams(location.search).get("mode"); if(p==="screen"||p==="controller")return p; const ua=navigator.userAgent||""; const mob=/Android|iPhone|iPad|iPod|Mobile/i.test(ua); const coarse=matchMedia?.("(pointer: coarse)")?.matches; const small=Math.min(innerWidth,innerHeight)<860; return (mob||(coarse&&small))?"controller":"screen";}
+function resizeCanvas(c){if(!c)return; const dpr=Math.max(1,Math.min(2,devicePixelRatio||1)); c.width=Math.floor(innerWidth*dpr); c.height=Math.floor(innerHeight*dpr);} 
+function rotXYZ([x,y,z],rx,ry,rz){const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz); const y1=y*cx-z*sx,z1=y*sx+z*cx,x2=x*cy+z1*sy,z2=-x*sy+z1*cy; return [x2*cz-y1*sz,x2*sz+y1*cz,z2];}
+function proj([x,y,z],w,h){const d=Math.min(w,h)*1.15,s=d/(d-z);return{x:w/2+x*s,y:h/2+y*s};}
+function mid(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2};}
+function num(v){v=Number(v); return Number.isFinite(v)?v:0;}
+function fmt(v){return Number.isFinite(v)?Number(v).toFixed(2):"-";}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+function clampNum(v){return clamp(num(v),-Math.PI,Math.PI);} 
+function signTxt(s){return s===-1?"-":"+";}
 
 createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
