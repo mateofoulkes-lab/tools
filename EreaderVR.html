@@ -1,0 +1,778 @@
+<!DOCTYPE html><html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>EPUB VR Reader - Quest Prototype</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+  <style>
+    :root {
+      --bg: #101114;
+      --panel: rgba(24, 26, 31, 0.88);
+      --panel-strong: #181a1f;
+      --text: #eeeeee;
+      --muted: #a8abb4;
+      --accent: #88b7ff;
+      --border: rgba(255,255,255,0.12);
+      --reader-bg: #121318;
+      --reader-text: #f0f0f0;
+      --shadow: 0 24px 80px rgba(0,0,0,0.35);
+      --radius: 22px;
+    }body[data-theme="light"] {
+  --bg: #dfe5ec;
+  --panel: rgba(255,255,255,0.9);
+  --panel-strong: #ffffff;
+  --text: #15171c;
+  --muted: #5a6270;
+  --accent: #226ee8;
+  --border: rgba(0,0,0,0.12);
+  --reader-bg: #fafafa;
+  --reader-text: #161616;
+}
+
+body[data-theme="sepia"] {
+  --bg: #2a2119;
+  --panel: rgba(64, 49, 35, 0.9);
+  --panel-strong: #403123;
+  --text: #f2dec2;
+  --muted: #c2a98a;
+  --accent: #ffbd6b;
+  --border: rgba(255,224,184,0.18);
+  --reader-bg: #efe0c2;
+  --reader-text: #2b2117;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at top, color-mix(in srgb, var(--accent) 18%, transparent), transparent 38%), var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-strong) 84%, var(--accent) 16%);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  user-select: none;
+}
+
+button:hover, button:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  outline: none;
+}
+
+button:active { transform: translateY(1px); }
+button.primary { background: var(--accent); color: #07101f; font-weight: 800; }
+button.ghost { background: transparent; }
+button.small { padding: 7px 9px; border-radius: 11px; font-size: 13px; }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding: 12px;
+}
+
+.topbar, .bottombar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  padding: 10px;
+  min-height: 64px;
+}
+
+.left-controls, .right-controls, .center-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.book-title {
+  color: var(--muted);
+  max-width: 34vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-strong) 88%, transparent);
+}
+
+.reader-shell {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.reader-stage {
+  position: relative;
+  width: min(1240px, 100%);
+  height: 100%;
+  max-height: calc(100vh - 164px);
+  background: var(--reader-bg);
+  color: var(--reader-text);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transform-origin: center;
+}
+
+#viewer {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  padding: 28px;
+  text-align: center;
+  color: var(--reader-text);
+}
+
+.empty-card {
+  max-width: 620px;
+  background: color-mix(in srgb, var(--reader-bg) 80%, var(--reader-text) 8%);
+  border: 1px solid color-mix(in srgb, var(--reader-text) 18%, transparent);
+  border-radius: 26px;
+  padding: 26px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.22);
+}
+
+.empty-card h1 { margin: 0 0 10px; font-size: clamp(26px, 4vw, 44px); }
+.empty-card p { margin: 0; opacity: .78; font-size: clamp(15px, 1.8vw, 19px); line-height: 1.45; }
+
+.page-turn {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+  opacity: 0;
+  transform: translateX(0) skewX(-9deg);
+}
+
+.page-turn.next { animation: turnNext 420ms ease; }
+.page-turn.prev { animation: turnPrev 420ms ease; }
+
+@keyframes turnNext {
+  0% { opacity: 0; transform: translateX(45%) skewX(-9deg); }
+  38% { opacity: .65; }
+  100% { opacity: 0; transform: translateX(-55%) skewX(-9deg); }
+}
+@keyframes turnPrev {
+  0% { opacity: 0; transform: translateX(-55%) skewX(9deg); }
+  38% { opacity: .65; }
+  100% { opacity: 0; transform: translateX(45%) skewX(9deg); }
+}
+
+.progress-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 13px;
+  pointer-events: none;
+  min-width: min(620px, 72vw);
+  justify-content: center;
+}
+
+.progress-bar {
+  width: min(420px, 42vw);
+  height: 6px;
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width .18s ease;
+}
+
+.hidden-file { display: none; }
+
+.select-like {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-strong) 88%, transparent);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 9px 10px;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 36vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help {
+  position: fixed;
+  right: 14px;
+  bottom: 90px;
+  width: min(420px, calc(100vw - 28px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  display: none;
+  z-index: 30;
+  line-height: 1.45;
+}
+.help.open { display: block; }
+.help h3 { margin: 0 0 8px; }
+.help ul { margin: 8px 0 0 20px; padding: 0; }
+
+.vr-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: #050608;
+  z-index: 100;
+  color: #fff;
+}
+
+body.xr-mode .vr-overlay { display: grid; }
+body.xr-mode .app { display: none; }
+
+.vr-panel {
+  width: min(90vw, 1120px);
+  height: min(70vh, 760px);
+  border-radius: 30px;
+  background: var(--reader-bg);
+  color: var(--reader-text);
+  border: 2px solid rgba(255,255,255,0.18);
+  overflow: hidden;
+  box-shadow: 0 24px 100px rgba(0,0,0,0.8);
+}
+
+.vr-note {
+  position: fixed;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 18px;
+  padding: 10px 14px;
+  font-size: 14px;
+  max-width: 80vw;
+  text-align: center;
+}
+
+@media (max-width: 820px) {
+  .topbar, .bottombar { align-items: stretch; flex-direction: column; }
+  .left-controls, .right-controls, .center-controls { justify-content: center; }
+  .book-title, .status { max-width: 90vw; }
+  .reader-stage { max-height: calc(100vh - 252px); border-radius: 20px; }
+  .progress-wrap { min-width: 88vw; }
+}
+
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="app">
+    <header class="topbar">
+      <div class="left-controls">
+        <div>
+          <div class="brand">EPUB VR Reader</div>
+          <div id="bookTitle" class="book-title">Sin libro cargado</div>
+        </div>
+        <input id="fileInput" class="hidden-file" type="file" accept=".epub,application/epub+zip" />
+        <button id="loadBtn" class="primary">Cargar EPUB</button>
+        <button id="fsBtn">Pantalla completa</button>
+        <button id="xrBtn">Entrar VR</button>
+      </div>
+      <div class="right-controls">
+        <select id="themeSelect" class="select-like" title="Tema">
+          <option value="dark">Oscuro</option>
+          <option value="light">Claro</option>
+          <option value="sepia">Sepia</option>
+        </select>
+        <select id="columnsSelect" class="select-like" title="Columnas">
+          <option value="1">1 columna</option>
+          <option value="2">2 columnas</option>
+          <option value="3">3 columnas</option>
+        </select>
+        <button id="fontDown" class="small">A−</button>
+        <button id="fontUp" class="small">A+</button>
+        <div id="clock" class="clock">--:--</div>
+      </div>
+    </header><main class="reader-shell">
+  <section id="readerStage" class="reader-stage">
+    <div id="viewer"></div>
+    <div id="emptyState" class="empty-state">
+      <div class="empty-card">
+        <h1>Tu libro, flotando en VR</h1>
+        <p>Cargá un EPUB y usá los botones, teclado o mandos. Para Quest: abrilo desde GitHub Pages en Meta Quest Browser y tocá “Entrar VR”.</p>
+      </div>
+    </div>
+    <div id="pageTurn" class="page-turn"></div>
+  </section>
+</main>
+
+<footer class="bottombar">
+  <div class="left-controls">
+    <button id="prevChapter">⟪ Capítulo</button>
+    <button id="prevPage">‹ Página</button>
+  </div>
+  <div class="center-controls">
+    <div id="progressText" class="status">Página — / — · 0%</div>
+  </div>
+  <div class="right-controls">
+    <button id="nextPage">Página ›</button>
+    <button id="nextChapter">Capítulo ⟫</button>
+    <button id="helpBtn" class="ghost">Ayuda</button>
+  </div>
+  <div class="progress-wrap" aria-hidden="true">
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+  </div>
+</footer>
+
+  </div>  <aside id="help" class="help">
+    <h3>Controles</h3>
+    <ul>
+      <li>Teclado: ←/→ página, ↑/↓ capítulo, +/− tamaño, F pantalla completa.</li>
+      <li>Quest/mandos: gatillos o botones principales para avanzar/retroceder; joystick horizontal para página; vertical para capítulo.</li>
+      <li>Botón menú/secondary: intenta alternar pantalla completa.</li>
+    </ul>
+  </aside>  <div id="vrOverlay" class="vr-overlay">
+    <div class="vr-note">Modo VR activo. Esta v1 usa WebXR para capturar mandos y mantiene el lector como panel web. En Quest Browser, fijá la ventana frente a vos.</div>
+    <div class="vr-panel">
+      <div id="vrMirror"></div>
+    </div>
+  </div>  <script>
+    const state = {
+      book: null,
+      rendition: null,
+      locationsReady: false,
+      totalPages: 0,
+      currentPage: 0,
+      percentage: 0,
+      fontSize: 100,
+      columns: 1,
+      theme: 'dark',
+      currentCfi: null,
+      xrSession: null,
+      xrRefSpace: null,
+      lastGamepadActions: new Map(),
+      axisCooldown: 0,
+      currentSpineIndex: 0
+    };
+
+    const el = {
+      fileInput: document.getElementById('fileInput'),
+      loadBtn: document.getElementById('loadBtn'),
+      fsBtn: document.getElementById('fsBtn'),
+      xrBtn: document.getElementById('xrBtn'),
+      viewer: document.getElementById('viewer'),
+      vrMirror: document.getElementById('vrMirror'),
+      emptyState: document.getElementById('emptyState'),
+      bookTitle: document.getElementById('bookTitle'),
+      themeSelect: document.getElementById('themeSelect'),
+      columnsSelect: document.getElementById('columnsSelect'),
+      fontDown: document.getElementById('fontDown'),
+      fontUp: document.getElementById('fontUp'),
+      prevChapter: document.getElementById('prevChapter'),
+      nextChapter: document.getElementById('nextChapter'),
+      prevPage: document.getElementById('prevPage'),
+      nextPage: document.getElementById('nextPage'),
+      progressText: document.getElementById('progressText'),
+      progressFill: document.getElementById('progressFill'),
+      pageTurn: document.getElementById('pageTurn'),
+      clock: document.getElementById('clock'),
+      helpBtn: document.getElementById('helpBtn'),
+      help: document.getElementById('help')
+    };
+
+    function setStatus(text) {
+      el.progressText.textContent = text;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      el.clock.textContent = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    }
+    updateClock();
+    setInterval(updateClock, 15000);
+
+    function applyTheme(theme) {
+      state.theme = theme;
+      document.body.dataset.theme = theme;
+      if (state.rendition) {
+        const styles = themeStyles();
+        state.rendition.themes.override('background', styles.bg);
+        state.rendition.themes.override('color', styles.text);
+      }
+    }
+
+    function themeStyles() {
+      if (state.theme === 'light') return { bg: '#fafafa', text: '#161616' };
+      if (state.theme === 'sepia') return { bg: '#efe0c2', text: '#2b2117' };
+      return { bg: '#121318', text: '#f0f0f0' };
+    }
+
+    function getReaderSize() {
+      const rect = document.getElementById('readerStage').getBoundingClientRect();
+      return { width: Math.max(320, rect.width), height: Math.max(320, rect.height) };
+    }
+
+    async function loadBook(file) {
+      cleanupBook();
+      el.emptyState.style.display = 'none';
+      setStatus('Cargando libro...');
+
+      const buffer = await file.arrayBuffer();
+      state.book = ePub(buffer);
+
+      const metadata = await state.book.loaded.metadata.catch(() => ({}));
+      el.bookTitle.textContent = metadata.title || file.name;
+
+      const size = getReaderSize();
+      state.rendition = state.book.renderTo('viewer', {
+        width: size.width,
+        height: size.height,
+        spread: state.columns > 1 ? 'always' : 'none',
+        flow: 'paginated',
+        manager: 'default'
+      });
+
+      registerRenditionThemes();
+      await state.rendition.display();
+      await generateLocations();
+      wireRenditionEvents();
+      applyLayout();
+      updateProgress();
+    }
+
+    function cleanupBook() {
+      if (state.rendition) {
+        try { state.rendition.destroy(); } catch (e) {}
+      }
+      if (state.book) {
+        try { state.book.destroy(); } catch (e) {}
+      }
+      state.book = null;
+      state.rendition = null;
+      state.locationsReady = false;
+      state.totalPages = 0;
+      state.currentPage = 0;
+      state.percentage = 0;
+      state.currentCfi = null;
+      state.currentSpineIndex = 0;
+      el.viewer.innerHTML = '';
+    }
+
+    function registerRenditionThemes() {
+      const styles = themeStyles();
+      state.rendition.themes.register('readerTheme', {
+        body: {
+          'background': styles.bg + ' !important',
+          'color': styles.text + ' !important',
+          'font-family': 'Georgia, Cambria, serif !important',
+          'line-height': '1.55 !important',
+          'padding': '0 !important'
+        },
+        'p, div, span, li': {
+          'font-size': state.fontSize + '% !important'
+        },
+        'a': { 'color': 'inherit !important' }
+      });
+      state.rendition.themes.select('readerTheme');
+      state.rendition.themes.fontSize(state.fontSize + '%');
+    }
+
+    async function generateLocations() {
+      try {
+        await state.book.ready;
+        await state.book.locations.generate(1200);
+        state.locationsReady = true;
+        state.totalPages = Math.max(1, state.book.locations.total || 1);
+      } catch (e) {
+        state.locationsReady = false;
+        state.totalPages = 0;
+      }
+    }
+
+    function wireRenditionEvents() {
+      state.rendition.on('relocated', location => {
+        state.currentCfi = location.start.cfi;
+        state.percentage = location.start.percentage || 0;
+        const index = location.start.index;
+        if (typeof index === 'number') state.currentSpineIndex = index;
+
+        if (state.locationsReady && state.book.locations) {
+          const loc = state.book.locations.locationFromCfi(location.start.cfi);
+          state.currentPage = Math.max(1, loc || 1);
+          state.totalPages = Math.max(state.totalPages, state.book.locations.total || state.totalPages || 1);
+        } else {
+          state.currentPage = 0;
+        }
+        updateProgress();
+      });
+    }
+
+    function updateProgress() {
+      const pct = Math.max(0, Math.min(100, state.percentage * 100));
+      el.progressFill.style.width = pct.toFixed(1) + '%';
+      if (state.totalPages && state.currentPage) {
+        setStatus(`Página ${state.currentPage} / ${state.totalPages} · ${pct.toFixed(1)}% leído`);
+      } else if (state.book) {
+        setStatus(`${pct.toFixed(1)}% leído`);
+      } else {
+        setStatus('Página — / — · 0%');
+      }
+    }
+
+    function applyLayout() {
+      if (!state.rendition) return;
+      const size = getReaderSize();
+      state.rendition.resize(size.width, size.height);
+      state.rendition.spread(state.columns > 1 ? 'always' : 'none');
+      const gap = state.columns === 1 ? 0 : 34;
+      state.rendition.themes.default({
+        body: {
+          'column-count': String(state.columns),
+          'column-gap': gap + 'px',
+          'background': themeStyles().bg + ' !important',
+          'color': themeStyles().text + ' !important'
+        }
+      });
+      state.rendition.themes.fontSize(state.fontSize + '%');
+      if (state.currentCfi) state.rendition.display(state.currentCfi);
+    }
+
+    function animateTurn(dir) {
+      el.pageTurn.className = 'page-turn';
+      void el.pageTurn.offsetWidth;
+      el.pageTurn.classList.add(dir === 'prev' ? 'prev' : 'next');
+    }
+
+    async function nextPage() {
+      if (!state.rendition) return;
+      animateTurn('next');
+      await state.rendition.next();
+    }
+
+    async function prevPage() {
+      if (!state.rendition) return;
+      animateTurn('prev');
+      await state.rendition.prev();
+    }
+
+    async function nextChapter() {
+      if (!state.book || !state.rendition) return;
+      const spine = state.book.spine.spineItems || [];
+      const next = Math.min(spine.length - 1, state.currentSpineIndex + 1);
+      if (spine[next]) {
+        animateTurn('next');
+        await state.rendition.display(spine[next].href);
+      }
+    }
+
+    async function prevChapter() {
+      if (!state.book || !state.rendition) return;
+      const spine = state.book.spine.spineItems || [];
+      const prev = Math.max(0, state.currentSpineIndex - 1);
+      if (spine[prev]) {
+        animateTurn('prev');
+        await state.rendition.display(spine[prev].href);
+      }
+    }
+
+    function changeFont(delta) {
+      state.fontSize = Math.max(70, Math.min(220, state.fontSize + delta));
+      if (state.rendition) {
+        state.rendition.themes.fontSize(state.fontSize + '%');
+        state.rendition.themes.override('font-size', state.fontSize + '%');
+      }
+    }
+
+    async function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        await document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    async function enterXR() {
+      if (!navigator.xr) {
+        alert('Este navegador no expone WebXR. En Quest, probá desde Meta Quest Browser y HTTPS/GitHub Pages.');
+        return;
+      }
+      const supported = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+      if (!supported) {
+        alert('Immersive VR no disponible en este navegador/contexto. GitHub Pages con HTTPS debería funcionar en Quest Browser.');
+        return;
+      }
+      try {
+        state.xrSession = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
+        document.body.classList.add('xr-mode');
+        state.xrSession.addEventListener('end', () => {
+          document.body.classList.remove('xr-mode');
+          state.xrSession = null;
+        });
+        state.xrRefSpace = await state.xrSession.requestReferenceSpace('local-floor').catch(() => null);
+        state.xrSession.requestAnimationFrame(onXRFrame);
+      } catch (err) {
+        alert('No pude entrar en VR: ' + err.message);
+      }
+    }
+
+    function onXRFrame(time, frame) {
+      const session = frame.session;
+      pollXRInputs(session.inputSources, time);
+      session.requestAnimationFrame(onXRFrame);
+    }
+
+    function pollXRInputs(inputSources, time) {
+      for (const source of inputSources) {
+        const gp = source.gamepad;
+        if (!gp) continue;
+        const handedness = source.handedness || gp.id || 'unknown';
+        handleGamepad(gp, handedness, time);
+      }
+    }
+
+    function handleGamepad(gp, id, time = performance.now()) {
+      const key = String(id);
+      const last = state.lastGamepadActions.get(key) || { buttons: [], axesTime: 0 };
+
+      gp.buttons.forEach((btn, i) => {
+        const wasPressed = !!last.buttons[i];
+        const isPressed = !!btn.pressed || btn.value > 0.72;
+        if (isPressed && !wasPressed) {
+          if (i === 0 || i === 1) {
+            key.includes('left') ? prevPage() : nextPage();
+          } else if (i === 2) {
+            prevChapter();
+          } else if (i === 3) {
+            nextChapter();
+          } else if (i === 4 || i === 5) {
+            toggleFullscreen();
+          }
+        }
+        last.buttons[i] = isPressed;
+      });
+
+      const axX = gp.axes[2] ?? gp.axes[0] ?? 0;
+      const axY = gp.axes[3] ?? gp.axes[1] ?? 0;
+      if (time - last.axesTime > 430) {
+        if (axX > 0.65) { nextPage(); last.axesTime = time; }
+        else if (axX < -0.65) { prevPage(); last.axesTime = time; }
+        else if (axY > 0.65) { nextChapter(); last.axesTime = time; }
+        else if (axY < -0.65) { prevChapter(); last.axesTime = time; }
+      }
+      state.lastGamepadActions.set(key, last);
+    }
+
+    function pollStandardGamepads() {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const now = performance.now();
+      for (const gp of pads) {
+        if (!gp) continue;
+        handleGamepad(gp, gp.id || gp.index, now);
+      }
+      requestAnimationFrame(pollStandardGamepads);
+    }
+    requestAnimationFrame(pollStandardGamepads);
+
+    el.loadBtn.addEventListener('click', () => el.fileInput.click());
+    el.fileInput.addEventListener('change', e => {
+      const file = e.target.files?.[0];
+      if (file) loadBook(file).catch(err => {
+        console.error(err);
+        el.emptyState.style.display = 'grid';
+        setStatus('No pude cargar el EPUB. Probá con otro archivo.');
+      });
+    });
+
+    el.themeSelect.addEventListener('change', e => applyTheme(e.target.value));
+    el.columnsSelect.addEventListener('change', e => {
+      state.columns = Number(e.target.value);
+      applyLayout();
+    });
+    el.fontDown.addEventListener('click', () => changeFont(-10));
+    el.fontUp.addEventListener('click', () => changeFont(10));
+    el.prevPage.addEventListener('click', prevPage);
+    el.nextPage.addEventListener('click', nextPage);
+    el.prevChapter.addEventListener('click', prevChapter);
+    el.nextChapter.addEventListener('click', nextChapter);
+    el.fsBtn.addEventListener('click', toggleFullscreen);
+    el.xrBtn.addEventListener('click', enterXR);
+    el.helpBtn.addEventListener('click', () => el.help.classList.toggle('open'));
+
+    window.addEventListener('resize', () => {
+      clearTimeout(window.__resizeBookTimer);
+      window.__resizeBookTimer = setTimeout(applyLayout, 180);
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.key === 'ArrowRight') nextPage();
+      if (e.key === 'ArrowLeft') prevPage();
+      if (e.key === 'ArrowDown') nextChapter();
+      if (e.key === 'ArrowUp') prevChapter();
+      if (e.key === '+' || e.key === '=') changeFont(10);
+      if (e.key === '-' || e.key === '_') changeFont(-10);
+      if (e.key.toLowerCase() === 'f') toggleFullscreen();
+    });
+
+    if (!('xr' in navigator)) {
+      el.xrBtn.title = 'WebXR no disponible en este navegador';
+    }
+  </script></body>
+</html>
