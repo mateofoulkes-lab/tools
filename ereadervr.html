@@ -289,6 +289,39 @@ button{touch-action:manipulation}
   font-variant-numeric:tabular-nums;
 }
 
+body .viewer-shell.quest-mode .menu-toggle{
+  width:58px;
+  height:58px;
+  font-size:24px;
+}
+
+body .viewer-shell.quest-mode .control-btn{
+  width:58px;
+  height:58px;
+  font-size:19px;
+}
+
+body .viewer-shell.quest-mode .page-indicator{
+  min-width:260px;
+  font-size:15px;
+  padding:14px 18px;
+}
+
+body .viewer-shell.quest-mode .hover-zone{
+  width:180px;
+  opacity:.28;
+}
+
+body .viewer-shell.quest-mode .hover-zone.show{
+  opacity:1;
+}
+
+body .viewer-shell.quest-mode .hover-nav-btn{
+  width:68px;
+  height:128px;
+  font-size:36px;
+}
+
 .page-turn{
   position:absolute;
   inset:0;
@@ -321,7 +354,7 @@ button{touch-action:manipulation}
       <button id="loadBookBtn" class="menu-btn">Cargar libro</button>
       <input id="epubInput" class="hidden-file" type="file" accept=".epub,application/epub+zip" />
       <button id="fullscreenBtn" class="menu-btn">Pantalla completa</button>
-      <button id="xrBtn" class="menu-btn">Entrar VR / activar mandos</button>
+      <button id="xrBtn" class="menu-btn">Modo Quest / mandos</button>
     </div>
 
     <div class="menu-sep"></div>
@@ -625,23 +658,15 @@ button{touch-action:manipulation}
     }
 
     async function enterXR(){
-      if (!navigator.xr){ alert('WebXR no aparece disponible. En Quest usá Meta Quest Browser y GitHub Pages/HTTPS.'); return; }
-      const supported = await navigator.xr.isSessionSupported('immersive-vr').catch(()=>false);
-      if (!supported){ alert('Immersive VR no está disponible en este navegador/contexto.'); return; }
-      try{
-        state.xrSession = await navigator.xr.requestSession('immersive-vr', { optionalFeatures:['local-floor','bounded-floor'] });
-        setStatus('VR activo: mandos habilitados.'); els.readerMenu.classList.remove('open');
-        state.xrSession.addEventListener('end', () => { state.xrSession = null; setStatus('VR finalizado.'); });
-        state.xrSession.requestAnimationFrame(onXRFrame);
-      }catch(err){ alert('No pude entrar en VR: ' + err.message); }
-    }
-
-    function onXRFrame(time, frame){
-      const session = frame.session; pollXRInputs(session.inputSources, time); session.requestAnimationFrame(onXRFrame);
-    }
-
-    function pollXRInputs(inputSources, time){
-      for (const source of inputSources){ const gp = source.gamepad; if(!gp) continue; handleGamepad(gp, source.handedness || gp.id || 'unknown', time); }
+      // IMPORTANTE:
+      // Esta v1 NO entra en immersive-vr real, porque Quest Browser necesita una escena WebGL/WebXR
+      // con framebuffer XR. Si pedimos immersive-vr sin render 3D real, puede quedar cargando eternamente.
+      // En cambio activamos un “modo Quest”: pantalla completa + UI grande + lectura de gamepads/mandos.
+      await toggleFullscreen();
+      els.viewerShell.classList.add('quest-mode');
+      setStatus('Modo Quest activo: pantalla completa + mandos/gamepad.');
+      els.readerMenu.classList.remove('open');
+      showBottomBar(true);
     }
 
     function pollStandardGamepads(){
