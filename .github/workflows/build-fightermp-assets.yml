@@ -1,0 +1,49 @@
+name: Build fightermp assets
+on:
+  push:
+    paths:
+      - '.github/workflows/build-fightermp-assets.yml'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 fighter asset
+        run: |
+          mkdir -p fightermp
+          curl -L --fail --retry 3 -o fightermp/Barbarian.glb "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Barbarian.glb"
+          curl -L --fail --retry 3 -o fightermp/LICENSE.txt "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/LICENSE.txt"
+          cat > fightermp/README.md <<'EOF'
+          # Fighter MP test assets
+
+          `Barbarian.glb` comes from KayKit Character Pack: Adventurers 1.0.
+
+          Source: https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
+
+          License: CC0 1.0 Universal. See `LICENSE.txt`.
+
+          The GLB contains the rigged low-poly Barbarian character and the animation clips used by `../fightermp.html`.
+          EOF
+          test $(stat -c%s fightermp/Barbarian.glb) -gt 3000000
+      - name: Check fighter JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('fightermp.html').read_text()
+          m=re.search(r'<script type="module">(.*?)</script>',s,re.S)
+          assert m, 'module script missing'
+          Path('/tmp/fightermp.mjs').write_text(m.group(1))
+          PY
+          node --check /tmp/fightermp.mjs
+          grep -q "trystero@0.25.3" fightermp.html
+          grep -q "fightermp/Barbarian.glb" fightermp.html
+      - name: Commit assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fightermp
+          git commit -m "Add CC0 KayKit fighter assets"
+          git push
