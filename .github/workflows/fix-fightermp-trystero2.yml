@@ -1,0 +1,55 @@
+name: Fix fightermp Trystero API v2
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-fightermp-trystero2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('fightermp.html')
+          s=p.read_text()
+          s=s.replace("const ROOM='mateo-fightermp-v1';const room=joinRoom({appId:'mateo-tools-fightermp'},ROOM);const [sendState,getState]=room.makeAction('fighter-state');const [sendHit,getHit]=room.makeAction('fighter-hit');const [sendPing,getPing]=room.makeAction('fighter-ping');const [sendPong,getPong]=room.makeAction('fighter-pong');const [sendReset,getReset]=room.makeAction('fighter-reset');", "const ROOM='mateo-fightermp-v1';const room=joinRoom({appId:'mateo-tools-fightermp'},ROOM);const stateAction=room.makeAction('fighter-state');const hitAction=room.makeAction('fighter-hit');const resetAction=room.makeAction('fighter-reset');")
+          s=s.replace("sendHit({id:crypto.randomUUID(),from:selfId,to:remoteId,damage:damageFor(local),type:local.attack,t:Date.now()})", "hitAction.send({id:crypto.randomUUID(),from:selfId,to:remoteId,damage:damageFor(local),type:local.attack,t:Date.now()},{target:remoteId}).catch(()=>{})")
+          s=s.replace("if(broadcast)sendReset({t:Date.now()})", "if(broadcast)resetAction.send({t:Date.now()}).catch(()=>{})")
+          s=s.replace("sendState({x:local.x,z:local.z,yaw:local.yaw,hp:local.hp,block:local.block,action:local.attack||local.current,t:Date.now()})", "stateAction.send({x:local.x,z:local.z,yaw:local.yaw,hp:local.hp,block:local.block,action:local.attack||local.current,t:Date.now()}).catch(()=>{})")
+          a=s.index("room.onPeerJoin(id=>")
+          b=s.index("\n\nloader.load('fightermp/Barbarian.glb'", a)
+          if a<0 or b<0: raise SystemExit('network block not found')
+          block="""room.onPeerJoin=id=>{remoteId=id;document.getElementById('netState').textContent='P2P · CONECTADO';document.getElementById('netState').className='ok';if(source&&!fighters.has(id))makeFighter(id,false);assignSides();};
+room.onPeerLeave=id=>{if(fighters.has(id)){scene.remove(fighters.get(id).g);fighters.delete(id)}if(remoteId===id)remoteId=null;document.getElementById('netState').textContent='P2P · ESPERANDO RIVAL';document.getElementById('netState').className='wait'};
+stateAction.onMessage=(d,{peerId:id})=>{if(!source||!d)return;if(!fighters.has(id))makeFighter(id,false);remoteId=id;const f=fighters.get(id);f.targetX=d.x;f.targetZ=d.z;f.targetYaw=d.yaw;f.targetHp=d.hp;f.block=!!d.block;f.lastSeen=performance.now();const act=d.action||'idle';if(act!==f.current)play(f,act,.08);assignSides()};
+const seenHits=new Set();hitAction.onMessage=(d,{peerId:id})=>{if(!local||!d||d.to!==selfId||seenHits.has(d.id))return;seenHits.add(d.id);let dmg=d.damage||10;if(local.block)dmg=Math.max(2,Math.round(dmg*.25));local.hp=Math.max(0,local.hp-dmg);if(local.hp<=0)play(local,'death',.03);else play(local,'hit',.03)};
+resetAction.onMessage=()=>resetLocal(false);"""
+          s=s[:a]+block+s[b:]
+          s=s.replace("if(remoteId&&now-lastPing>1000){lastPing=now;const seq=++pingSeq;pingSent.set(seq,performance.now());sendPing({seq,t:Date.now()},remoteId)}hud()", "if(remoteId&&now-lastPing>1000){lastPing=now;room.ping(remoteId).then(v=>{if(Number.isFinite(v)){rtts.push(v);if(rtts.length>8)rtts.shift();document.getElementById('rtt').textContent='RTT · '+Math.round(rtts.reduce((a,b)=>a+b,0)/rtts.length)+' ms'}}).catch(()=>{})}hud()")
+          p.write_text(s)
+          PY
+      - name: Syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('fightermp.html').read_text()
+          assert "stateAction=room.makeAction" in s
+          assert "stateAction.onMessage" in s
+          assert "room.onPeerJoin=id=>" in s
+          assert "room.ping(remoteId)" in s
+          m=re.search(r'<script type="module">(.*?)</script>',s,re.S)
+          Path('/tmp/fightermp.mjs').write_text(m.group(1))
+          PY
+          node --check /tmp/fightermp.mjs
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fightermp.html
+          git commit -m "Fix fightermp Trystero API"
+          git push
