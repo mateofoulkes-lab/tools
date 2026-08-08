@@ -26,10 +26,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;color:
  <div class="pad move left" data-key="a">◀</div><div class="pad move rightmove" data-key="d">▶</div><div class="pad back" data-key="w">▲</div>
  <div class="pad btnA" data-key="j">P</div><div class="pad btnB" data-key="k">K</div><div class="pad btnG" data-key="l">B</div>
 </div>
+<script>
+window.addEventListener('error',e=>{const s=document.getElementById('splash');if(s){s.style.display='grid';s.innerHTML='<div><b style=\"color:#ff9b9b\">ERROR DE ARRANQUE</b><br><small style=\"display:block;max-width:80vw;margin-top:8px;opacity:.8\">'+String(e.message||e.error||'Error desconocido')+'</small></div>';}});
+window.addEventListener('unhandledrejection',e=>{const s=document.getElementById('splash');if(s){s.style.display='grid';s.innerHTML='<div><b style=\"color:#ff9b9b\">ERROR DE ARRANQUE</b><br><small style=\"display:block;max-width:80vw;margin-top:8px;opacity:.8\">'+String(e.reason?.message||e.reason||'Promise rechazada')+'</small></div>';}});
+</script>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {SkeletonUtils} from 'three/addons/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {joinRoom,selfId} from 'https://esm.sh/trystero@0.25.3';
 
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x17191d);scene.fog=new THREE.Fog(0x17191d,12,28);
