@@ -10,8 +10,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}iframe
 <div id="buildInfo" class="buildInfo"></div>
 <div class="touch"><div class="stickZone leftZone" id="leftZone"><div class="base" id="leftBase"><div class="knob"></div></div></div><div class="stickZone rightZone" id="rightZone"><div class="base" id="rightBase"><div class="knob"></div></div><div class="moveHint">MOVER</div><div class="camHint">MIRAR</div><div class="buttons"><div class="btn" data-button="0">C4<br>BAJA</div><div class="btn" data-button="2">C4<br>MEDIA</div><div class="btn" data-key="f">DET</div><div class="btn jump" data-key=" ">SALTO</div></div></div>
 <script>
-const GAME_VERSION='0.2.0';
-const LAST_CHANGE='main_rigged.fbx + retarget automático de animaciones KayKit';
+const GAME_VERSION='0.2.1';
+const LAST_CHANGE='Corrección automática de ejes/rest pose en retarget KayKit → Hunyuan';
 document.getElementById('buildInfo').innerHTML='<b>Bomber3D v'+GAME_VERSION+'</b><br>Última modificación: '+LAST_CHANGE;
 const frame=document.getElementById('game');let gw=null,gdoc=null,canvas=null,debugTimer=null;
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -22,6 +22,7 @@ function renderAnimDebug(){
  if(r){h+='<div class="'+(r.ok?'ok':'warn')+'">'+(r.ok?'✓':'⚠')+' '+esc(r.status)+'</div>';
  h+='<div>huesos: '+r.mapped+'/'+r.targetBones+' target · source '+r.sourceBones+'</div>';
  h+='<div>clips: '+r.retargeted+'/'+r.sourceClips+' retargeteados</div>';
+ h+='<div>offsets rest-pose: '+(r.offsets||0)+'</div>';
  if(r.hip)h+='<div>hip source: '+esc(r.hip)+'</div>'}
  if(info){for(const c of info.slice(0,12))h+='<div class="clip">#'+c.i+' · '+esc(c.name)+' · '+Number(c.duration||0).toFixed(2)+'s · '+c.tracks+' tracks</div>';
  if(info.length>12)h+='<div>… +'+(info.length-12)+' clips</div>'}
@@ -54,35 +55,23 @@ function avatar()`);
   html=html.replace('const cameraRay=new THREE.Raycaster();',`
 const cameraRay=new THREE.Raycaster();
 function findSkin(o){let s=null;o?.traverse?.(x=>{if(!s&&x.isSkinnedMesh)s=x});return s}
-function boneCanon(n){
- n=String(n||'').toLowerCase().replace(/mixamorig|armature|rig|skeleton|bone|def|jnt|joint/g,'').replace(/[^a-z0-9]/g,'');
- n=n.replace(/^l(?=[a-z])/,'left').replace(/^r(?=[a-z])/,'right');
- return n
-}
+function boneCanon(n){n=String(n||'').toLowerCase().replace(/mixamorig|armature|rig|skeleton|bone|def|jnt|joint/g,'').replace(/[^a-z0-9]/g,'');n=n.replace(/^l(?=[a-z])/,'left').replace(/^r(?=[a-z])/,'right');return n}
 function role(n){
  const s=boneCanon(n),side=s.includes('left')?'l':s.includes('right')?'r':'',no=s.replace(/left|right/g,'');
- if(/hips?|pelvis|root/.test(no))return'hips';
- if(/upperleg|upleg|thigh/.test(no))return side+'thigh';
- if(/lowerleg|leg|calf|shin/.test(no)&&!/upper|up/.test(no))return side+'leg';
- if(/foot|ankle/.test(no))return side+'foot';
- if(/toe/.test(no))return side+'toe';
- if(/shoulder|clavicle/.test(no))return side+'shoulder';
- if(/forearm|lowerarm/.test(no))return side+'forearm';
- if(/upperarm|arm/.test(no)&&!/fore|lower/.test(no))return side+'arm';
- if(/hand|wrist/.test(no))return side+'hand';
- if(/head/.test(no))return'head';
- if(/neck/.test(no))return'neck';
- if(/spine3|upperchest|chest2/.test(no))return'spine3';
- if(/spine2|chest/.test(no))return'spine2';
- if(/spine1/.test(no))return'spine1';
- if(/spine/.test(no))return'spine';
- return''
+ if(/hips?|pelvis|root/.test(no))return'hips';if(/upperleg|upleg|thigh/.test(no))return side+'thigh';if(/lowerleg|leg|calf|shin/.test(no)&&!/upper|up/.test(no))return side+'leg';if(/foot|ankle/.test(no))return side+'foot';if(/toe/.test(no))return side+'toe';if(/shoulder|clavicle/.test(no))return side+'shoulder';if(/forearm|lowerarm/.test(no))return side+'forearm';if(/upperarm|arm/.test(no)&&!/fore|lower/.test(no))return side+'arm';if(/hand|wrist/.test(no))return side+'hand';if(/head/.test(no))return'head';if(/neck/.test(no))return'neck';if(/spine3|upperchest|chest2/.test(no))return'spine3';if(/spine2|chest/.test(no))return'spine2';if(/spine1/.test(no))return'spine1';if(/spine/.test(no))return'spine';return''
 }
 function makeBoneMap(targetSkin,sourceSkin){
  const tb=targetSkin?.skeleton?.bones||[],sb=sourceSkin?.skeleton?.bones||[],map={},used=new Set();
  for(const t of tb){const tc=boneCanon(t.name);let s=sb.find(x=>!used.has(x)&&boneCanon(x.name)===tc);if(s){map[t.name]=s.name;used.add(s)}}
  for(const t of tb){if(map[t.name])continue;const rr=role(t.name);if(!rr)continue;let s=sb.find(x=>!used.has(x)&&role(x.name)===rr);if(s){map[t.name]=s.name;used.add(s)}}
  return map
+}
+function makeRestOffsets(targetSkin,sourceSkin,boneMap){
+ const out={},tb=targetSkin?.skeleton?.bones||[],sb=sourceSkin?.skeleton?.bones||[];
+ targetSkin?.skeleton?.pose();sourceSkin?.skeleton?.pose();targetSkin?.updateMatrixWorld(true);sourceSkin?.updateMatrixWorld(true);
+ const qs=new THREE.Quaternion(),qt=new THREE.Quaternion(),qi=new THREE.Quaternion(),qo=new THREE.Quaternion();
+ for(const t of tb){const sn=boneMap[t.name],s=sb.find(b=>b.name===sn);if(!s)continue;s.getWorldQuaternion(qs);t.getWorldQuaternion(qt);qi.copy(qs).invert();qo.copy(qi).multiply(qt).normalize();out[t.name]=new THREE.Matrix4().makeRotationFromQuaternion(qo)}
+ return out
 }
 function insidePackage(){if(!player)return false;const[cx,cz]=cellAt(player.x,player.z);for(let x=cx-1;x<=cx+1;x++)for(let z=cz-1;z<=cz+1;z++){const a=stacks.get(key(x,z))||[];if(!a.length)continue;const p=wpos(x,z),hh=a.length*PACKAGE_H;if(player.y<hh+1.55&&Math.abs(player.x-p.x)<.48+PLAYER_RADIUS&&Math.abs(player.z-p.z)<.43+PLAYER_RADIUS)return true}return false}
 function setGhostVisual(on){if(!player?.model||ghostVisual===on)return;ghostVisual=on;player.model.traverse(o=>{if(!o.isMesh||!o.material)return;const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats){if(!m.userData.__ghostBase)m.userData.__ghostBase={color:m.color?.clone?.(),opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite};const b=m.userData.__ghostBase;if(on){if(m.color)m.color.set(0x48a9ff);m.transparent=true;m.opacity=.58;m.depthWrite=false}else{if(m.color&&b.color)m.color.copy(b.color);m.opacity=b.opacity;m.transparent=b.transparent;m.depthWrite=b.depthWrite;m.needsUpdate=true}}})}
@@ -99,12 +88,10 @@ Promise.all([
  source=fbx;
  const targetSkin=findSkin(fbx),sourceSkin=findSkin(g.scene),boneMap=makeBoneMap(targetSkin,sourceSkin);
  const sourceHip=(sourceSkin?.skeleton?.bones||[]).find(b=>role(b.name)==='hips')?.name||'mixamorigHips';
- const out=[];
- if(targetSkin&&sourceSkin){
-   for(const c of(g.animations||[])){try{const rc=SkeletonUtils.retargetClip(targetSkin,sourceSkin,c,{names:boneMap,hip:sourceHip,preserveBoneMatrix:true,preserveBonePositions:true,useTargetMatrix:true});rc.name=c.name;out.push(rc)}catch(err){console.warn('retarget failed',c.name,err)}}
- }
+ const localOffsets=makeRestOffsets(targetSkin,sourceSkin,boneMap),out=[];
+ if(targetSkin&&sourceSkin){for(const c of(g.animations||[])){try{const rc=SkeletonUtils.retargetClip(targetSkin,sourceSkin,c,{names:boneMap,hip:sourceHip,localOffsets,preserveBoneMatrix:true,preserveBonePositions:true,useTargetMatrix:true});rc.name=c.name;out.push(rc)}catch(err){console.warn('retarget failed',c.name,err)}}}
  clips=out;
- window.__bomber3dRetarget={ok:!!out.length,status:out.length?'Retarget activo':'No se pudo retargetear',mapped:Object.keys(boneMap).length,targetBones:targetSkin?.skeleton?.bones?.length||0,sourceBones:sourceSkin?.skeleton?.bones?.length||0,sourceClips:g.animations?.length||0,retargeted:out.length,hip:sourceHip,targetNames:(targetSkin?.skeleton?.bones||[]).map(b=>b.name),sourceNames:(sourceSkin?.skeleton?.bones||[]).map(b=>b.name)};
+ window.__bomber3dRetarget={ok:!!out.length,status:out.length?'Retarget activo + rest-pose offsets':'No se pudo retargetear',mapped:Object.keys(boneMap).length,targetBones:targetSkin?.skeleton?.bones?.length||0,sourceBones:sourceSkin?.skeleton?.bones?.length||0,sourceClips:g.animations?.length||0,retargeted:out.length,offsets:Object.keys(localOffsets).length,hip:sourceHip};
  mkClips();player=avatar();player.x=-11;player.z=-11;play(player,'idle');document.getElementById('splash').style.display='none'
 }).catch(e=>fatal(e?.message||e))`);
   html=html.replace('const roomId=new URLSearchParams(location.search)',`const roomId=new URLSearchParams(${JSON.stringify(location.search)})`);
