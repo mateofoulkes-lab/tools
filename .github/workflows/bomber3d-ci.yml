@@ -21,6 +21,7 @@ jobs:
         run: |
           python bomber3d/upgrade_v060.py
           python bomber3d/upgrade_riglab_v31.py
+          python bomber3d/upgrade_v032.py
 
       - name: Commit upgrades if needed
         run: |
@@ -28,7 +29,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add bomber3d/index.html bomber3d/rig-lab.html
-            git commit -m "Rig Lab v3.1: dedicated drag handle and model positioning"
+            git commit -m "Rig Lab v3.2: linked corresponding axes by default"
             git push
           fi
 
@@ -74,9 +75,10 @@ jobs:
               const kb=document.querySelector('#kBone')?.options?.length||0;
               const handles=document.querySelectorAll('.dragHandle').length;
               const posControls=['hpx','hpy','hpz','kpx','kpy','kpz'].every(id=>!!document.getElementById(id));
+              const linked=document.querySelector('#linked');
               const ready=window.__rigLabReady;
               if (/ERROR/i.test(status)) return {done:true,error:status};
-              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && ready.version==='3.1') return {done:true,status,hb,kb,handles,posControls,ready};
+              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && linked?.checked===true && ready.version==='3.2') return {done:true,status,hb,kb,handles,posControls,linked:linked.checked,ready};
               return false;
             }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Rig Lab: '+e.message}));
 
