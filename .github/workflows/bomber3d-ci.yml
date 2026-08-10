@@ -22,6 +22,7 @@ jobs:
           python bomber3d/upgrade_v060.py
           python bomber3d/upgrade_riglab_v31.py
           python bomber3d/upgrade_v032.py
+          python bomber3d/upgrade_riglab_v033.py
 
       - name: Commit upgrades if needed
         run: |
@@ -29,7 +30,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add bomber3d/index.html bomber3d/rig-lab.html
-            git commit -m "Rig Lab v3.2: linked corresponding axes by default"
+            git commit -m "Rig Lab v3.3: correct Hunyuan global X orientation"
             git push
           fi
 
@@ -78,7 +79,7 @@ jobs:
               const linked=document.querySelector('#linked');
               const ready=window.__rigLabReady;
               if (/ERROR/i.test(status)) return {done:true,error:status};
-              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && linked?.checked===true && ready.version==='3.2') return {done:true,status,hb,kb,handles,posControls,linked:linked.checked,ready};
+              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && linked?.checked===true && ready.version==='3.3') return {done:true,status,hb,kb,handles,posControls,linked:linked.checked,ready};
               return false;
             }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Rig Lab: '+e.message}));
 
