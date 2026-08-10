@@ -1,0 +1,86 @@
+name: Bomber3D CI
+
+on:
+  push:
+    paths:
+      - 'bomber3d/**'
+      - '.github/workflows/bomber3d-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repair known side-detection regex bug once
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('bomber3d/index.html')
+          s = p.read_text(encoding='utf-8')
+          old = s
+          s = s.replace("/[._\\\\- ]l$/i", "/[._ l-]l$/i")
+          s = s.replace("/^l[._\\\\- ]/i", "/^l[._ l-]/i")
+          s = s.replace("/[._\\\\- ]r$/i", "/[._ r-]r$/i")
+          s = s.replace("/^r[._\\\\- ]/i", "/^r[._ r-]/i")
+          s = s.replace("const GAME_VERSION='0.5.3'", "const GAME_VERSION='0.5.4'")
+          s = s.replace("LAST_CHANGE='Calibrador: detección robusta de izquierda/derecha en nombres de huesos'", "LAST_CHANGE='Fix regex de lateralidad + smoke test automático en Chromium'")
+          if s != old:
+              p.write_text(s, encoding='utf-8')
+              print('Applied one-time repair')
+          else:
+              print('No repair needed')
+
+      - name: Commit repair if needed
+        run: |
+          if ! git diff --quiet -- bomber3d/index.html; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bomber3d/index.html
+            git commit -m "Fix Bomber3D lateral regex and bump v0.5.4"
+            git push
+          fi
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start local server
+        run: |
+          python3 -m http.server 8000 >/tmp/bomber-http.log 2>&1 &
+          echo $! > /tmp/bomber-http.pid
+          sleep 2
+
+      - name: Browser smoke test
+        run: |
+          cat > /tmp/bomber-smoke.js <<'JS'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage();
+            const errors=[];
+            page.on('pageerror', e => errors.push('pageerror: '+e.message));
+            await page.goto('http://127.0.0.1:8000/bomber3d/', {waitUntil:'domcontentloaded', timeout:60000});
+            await page.waitForTimeout(3000);
+            const result = await page.waitForFunction(() => {
+              const f=document.querySelector('#game');
+              const w=f && f.contentWindow;
+              const bodyText=document.body?.innerText||'';
+              if (/ERROR|SyntaxError/i.test(bodyText)) return {done:true,error:bodyText.slice(0,1200)};
+              if (w && w.__bomber3dRetarget) return {done:true,retarget:w.__bomber3dRetarget};
+              return false;
+            }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout esperando calibrador: '+e.message}));
+            if (errors.length) result.pageErrors=errors;
+            console.log(JSON.stringify(result,null,2));
+            await browser.close();
+            if (result.error || errors.length || !result.retarget) process.exit(1);
+          })();
+          JS
+          node /tmp/bomber-smoke.js
