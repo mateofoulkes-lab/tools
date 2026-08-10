@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   smoke:
@@ -16,19 +16,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Apply v0.6.1 and Rig Lab v3.4
-        run: python bomber3d/fix_v061_riglab_v34.py
-
-      - name: Commit generated fixes if needed
-        run: |
-          if ! git diff --quiet -- bomber3d/index.html bomber3d/rig-lab.html; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add bomber3d/index.html bomber3d/rig-lab.html
-            git commit -m "Bomber3D v0.6.1 + Rig Lab v3.4: orientation and direct loading"
-            git push
-          fi
 
       - name: Install Playwright
         run: |
