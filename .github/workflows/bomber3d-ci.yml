@@ -68,10 +68,11 @@ jobs:
             await lab.goto('http://127.0.0.1:8000/bomber3d/rig-lab.html', {waitUntil:'domcontentloaded', timeout:60000});
             const labResult = await lab.waitForFunction(() => {
               const status=document.querySelector('#load')?.textContent||'';
-              const clips=document.querySelector('#clip')?.options?.length||0;
-              const bones=document.querySelector('#bone')?.options?.length||0;
+              const hb=document.querySelector('#hBone')?.options?.length||0;
+              const kb=document.querySelector('#kBone')?.options?.length||0;
+              const ready=window.__rigLabReady;
               if (/ERROR/i.test(status)) return {done:true,error:status};
-              if (status.startsWith('✓') && clips>10 && bones>8) return {done:true,status,clips,bones};
+              if (status.startsWith('✓') && ready && hb>8 && kb>8) return {done:true,status,hb,kb,ready};
               return false;
             }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Rig Lab: '+e.message}));
 
@@ -79,7 +80,7 @@ jobs:
             console.log('BOMBER',JSON.stringify(result,null,2));
             console.log('RIGLAB',JSON.stringify(labResult,null,2));
             await browser.close();
-            if (result.error || labResult.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6 || !labResult.clips || !labResult.bones) process.exit(1);
+            if (result.error || labResult.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6 || !labResult.ready) process.exit(1);
           })();
           JS
           node bomber-smoke.cjs
