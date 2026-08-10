@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Rig Lab · KayKit → Hunyuan</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e12;--card:#151a20;--line:#2b333d;--muted:#99a5b2;--accent:#58d68d;--warn:#ffcf66}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:#eef3f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif}button,select,input,textarea{font:inherit}button{border:1px solid var(--line);background:#202730;color:#fff;border-radius:10px;padding:10px 12px;font-weight:700}.primary{background:#1f8f55}.danger{background:#5d2830}.top{position:sticky;top:0;z-index:5;background:#090c10;border-bottom:1px solid var(--line)}#view{width:100%;height:48vh;min-height:300px;display:block;touch-action:none}.status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;font-size:12px}.pill{padding:4px 8px;border-radius:999px;background:#202730}.ok{color:#7dffae}.warn{color:var(--warn)}main{padding:10px;max-width:980px;margin:auto}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}.title{font-weight:900;margin-bottom:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;min-width:0}.field label,.small{font-size:12px;color:var(--muted)}select,textarea{width:100%;background:#0e1318;color:#fff;border:1px solid var(--line);border-radius:9px;padding:9px}input[type=range]{width:100%}.slider{display:grid;grid-template-columns:28px 1fr 50px;gap:6px;align-items:center}.axisX{color:#ff7777;font-weight:900}.axisY{color:#78e08f;font-weight:900}.axisZ{color:#6bb6ff;font-weight:900}.value{text-align:right;font:12px ui-monospace,monospace}.choice{display:grid;grid-template-columns:1fr 1fr;gap:7px}.choice label{border:1px solid var(--line);border-radius:9px;padding:9px;background:#10151b;font-size:13px}.choice input{margin-right:6px}.visual{display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:center}.gizmo{width:76px;height:76px;border-radius:50%;border:1px solid var(--line);position:relative;background:#0d1116}.gizmo .x,.gizmo .y,.gizmo .z{position:absolute;left:36px;top:36px;transform-origin:left center;height:3px;width:30px}.gizmo .x{background:#ff7777}.gizmo .y{background:#78e08f;transform:rotate(-90deg)}.gizmo .z{background:#6bb6ff;transform:rotate(45deg)}.gizmo b{position:absolute;font-size:10px}.gizmo .tx{right:5px;top:31px;color:#ff7777}.gizmo .ty{left:32px;top:4px;color:#78e08f}.gizmo .tz{right:8px;bottom:8px;color:#6bb6ff}.report{min-height:240px;font:12px/1.35 ui-monospace,monospace;white-space:pre}.stickyActions{position:sticky;bottom:0;background:#0b0e12e8;backdrop-filter:blur(8px);padding:8px 0;display:flex;gap:8px}.stickyActions button{flex:1}@media(max-width:560px){.grid,.grid3{grid-template-columns:1fr}.choice{grid-template-columns:1fr}#view{height:44vh;min-height:280px}.card{padding:10px}.visual{grid-template-columns:70px 1fr}.gizmo{width:66px;height:66px;transform:scale(.86);transform-origin:left center}}
+</style>
+</head>
+<body>
+<div class="top">
+<canvas id="view"></canvas>
+<div class="status"><b>RIG LAB v1.0</b><span id="load" class="pill warn">cargando…</span><span id="animState" class="pill">RUN</span><span class="pill">arrastrá para girar · pellizcá para zoom</span></div>
+</div>
+<main>
+<section class="card">
+<div class="title">1 · Animación y hueso</div>
+<div class="grid">
+<div class="field"><label for="clip">Clip KayKit</label><select id="clip"></select></div>
+<div class="field"><label for="bone">Hueso Hunyuan</label><select id="bone"></select></div>
+</div>
+<div class="row" style="margin-top:9px"><button id="play">⏯ Play / pausa</button><button id="slow">½ velocidad</button><button id="resetBone" class="danger">Reset hueso</button><button id="resetAll" class="danger">Reset TODO</button></div>
+</section>
+
+<section class="card">
+<div class="title">2 · Indicador del hueso seleccionado</div>
+<div class="visual"><div class="gizmo"><i class="x"></i><i class="y"></i><i class="z"></i><b class="tx">X</b><b class="ty">Y</b><b class="tz">Z</b></div><div><div id="boneTitle" style="font-weight:800">—</div><div id="boneMeta" class="small">—</div><div class="small" style="margin-top:5px">En el personaje aparece un gizmo XYZ pegado al hueso. La esfera amarilla marca exactamente cuál estás corrigiendo.</div></div></div>
+</section>
+
+<section class="card">
+<div class="title">3 · Remapeo de ejes de MOVIMIENTO</div>
+<div class="small" style="margin-bottom:8px">Esto cambia dónde termina cada componente de la rotación animada. Probá hasta que el swing vaya en la dirección correcta.</div>
+<div class="grid3">
+<div class="field"><label>Salida X toma</label><select id="mapX"><option value="x">+X</option><option value="-x">−X</option><option value="y">+Y</option><option value="-y">−Y</option><option value="z">+Z</option><option value="-z">−Z</option></select></div>
+<div class="field"><label>Salida Y toma</label><select id="mapY"><option value="y">+Y</option><option value="-y">−Y</option><option value="x">+X</option><option value="-x">−X</option><option value="z">+Z</option><option value="-z">−Z</option></select></div>
+<div class="field"><label>Salida Z toma</label><select id="mapZ"><option value="z">+Z</option><option value="-z">−Z</option><option value="x">+X</option><option value="-x">−X</option><option value="y">+Y</option><option value="-y">−Y</option></select></div>
+</div>
+</section>
+
+<section class="card">
+<div class="title">4 · Ajuste fino de POSE</div>
+<div class="slider"><span class="axisX">X</span><input id="rx" type="range" min="-180" max="180" step="1" value="0"><span id="rxv" class="value">0°</span></div>
+<div class="slider"><span class="axisY">Y</span><input id="ry" type="range" min="-180" max="180" step="1" value="0"><span id="ryv" class="value">0°</span></div>
+<div class="slider"><span class="axisZ">Z</span><input id="rz" type="range" min="-180" max="180" step="1" value="0"><span id="rzv" class="value">0°</span></div>
+<div class="small" style="margin-top:8px">Estos grados son un offset local permanente del hueso, además de la animación.</div>
+</section>
+
+<section class="card">
+<div class="title">5 · Intensidad del movimiento</div>
+<div class="slider"><span class="axisX">X</span><input id="gx" type="range" min="-2" max="2" step="0.05" value="1"><span id="gxv" class="value">1.00</span></div>
+<div class="slider"><span class="axisY">Y</span><input id="gy" type="range" min="-2" max="2" step="0.05" value="1"><span id="gyv" class="value">1.00</span></div>
+<div class="slider"><span class="axisZ">Z</span><input id="gz" type="range" min="-2" max="2" step="0.05" value="1"><span id="gzv" class="value">1.00</span></div>
+</section>
+
+<section class="card">
+<div class="title">6 · Decime qué estás viendo</div>
+<div class="field"><label>Dirección del movimiento actual</label><select id="seen"><option value="sin evaluar">Sin evaluar</option><option value="correcta">Correcta</option><option value="izquierda-derecha">Izquierda ↔ derecha</option><option value="adelante-atras">Adelante ↔ atrás</option><option value="arriba-abajo">Arriba ↔ abajo</option><option value="torsion">Torsiona sobre sí mismo</option><option value="casi-no-mueve">Casi no se mueve</option></select></div>
+<div class="field" style="margin-top:8px"><label>Dirección que DEBERÍA tener</label><select id="expected"><option value="sin evaluar">Sin evaluar</option><option value="izquierda-derecha">Izquierda ↔ derecha</option><option value="adelante-atras">Adelante ↔ atrás</option><option value="arriba-abajo">Arriba ↔ abajo</option><option value="torsion">Torsión</option></select></div>
+<div class="choice" style="margin-top:8px">
+<label><input type="radio" name="sense" value="sin evaluar" checked>Sentido sin evaluar</label><label><input type="radio" name="sense" value="correcto">Sentido correcto</label><label><input type="radio" name="sense" value="invertido">Está invertido</label><label><input type="radio" name="sense" value="no importa">El sentido no importa</label>
+</div>
+<div class="field" style="margin-top:8px"><label>Estado final de ESTE hueso</label><select id="quality"><option value="sin evaluar">Sin evaluar</option><option value="mal">❌ Mal</option><option value="casi">🟡 Casi</option><option value="bien">✅ Bien</option></select></div>
+<div class="field" style="margin-top:8px"><label>Nota libre</label><textarea id="note" rows="3" placeholder="Ej: el brazo ya va adelante/atrás pero queda demasiado levantado"></textarea></div>
+</section>
+
+<section class="card">
+<div class="title">7 · Informe que me vas a pasar</div>
+<div class="small" style="margin-bottom:7px">Se actualiza solo y queda guardado en este dispositivo.</div>
+<textarea id="report" class="report" readonly></textarea>
+<div class="row" style="margin-top:8px"><button id="copy" class="primary">Copiar informe</button><button id="download">Descargar JSON</button></div>
+</section>
+<div class="stickyActions"><button id="prev">← hueso anterior</button><button id="markGood" class="primary">✅ ESTE HUESO ESTÁ BIEN</button><button id="next">siguiente →</button></div>
+</main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+const $=id=>document.getElementById(id),storeKey='riglab-v1';
+let saved={};try{saved=JSON.parse(localStorage.getItem(storeKey)||'{}')}catch{}
+let scene,camera,renderer,clock,mixer,targetRoot,targetSkin,sourceSkin,clips=[],actions=new Map(),currentClip=null,playing=true,speed=1,selectedBone=null,marker,axes,restQ=new Map(),boneMap={};
+const canvas=$('view');
+function sideOf(n){const low=String(n||'').toLowerCase();if(low.includes('left'))return'l';if(low.includes('right'))return'r';let s=low;for(const sep of ['.','_','-',' ','|',':','/'])s=s.split(sep).join(' ');const t=s.split(' ').filter(Boolean);if(t.includes('l'))return'l';if(t.includes('r'))return'r';const c=low.replace(/[^a-z0-9]/g,'');for(const p of['upperarm','forearm','hand','shoulder','thigh','leg','foot','toe']){if(c.startsWith('l'+p)||c.endsWith(p+'l'))return'l';if(c.startsWith('r'+p)||c.endsWith(p+'r'))return'r'}return''}
+function canon(n){return String(n||'').toLowerCase().replace(/mixamorig|armature|rig|skeleton|bone|def|jnt|joint/g,'').replace(/[^a-z0-9]/g,'')}
+function role(n){const side=sideOf(n),s=canon(n).replace(/left|right/g,'');if(/hips?|pelvis|root/.test(s))return'hips';if(/upperleg|thigh/.test(s))return side+'thigh';if(/lowerleg|calf|shin/.test(s)||(/leg/.test(s)&&!/upper/.test(s)))return side+'leg';if(/foot|ankle/.test(s))return side+'foot';if(/toe/.test(s))return side+'toe';if(/shoulder|clavicle/.test(s))return side+'shoulder';if(/forearm|lowerarm/.test(s))return side+'forearm';if(/upperarm/.test(s)||(/arm/.test(s)&&!/fore|lower/.test(s)))return side+'arm';if(/hand|wrist/.test(s))return side+'hand';if(/head/.test(s))return'head';if(/neck/.test(s))return'neck';if(/spine3|upperchest/.test(s))return'spine3';if(/spine2|chest/.test(s))return'spine2';if(/spine1/.test(s))return'spine1';if(/spine/.test(s))return'spine';return''}
+function findSkin(o){let s=null;o.traverse(x=>{if(!s&&x.isSkinnedMesh)s=x});return s}
+function makeMap(t,s){const out={},used=new Set();for(const tb of t.skeleton.bones){const rr=role(tb.name);let sb=s.skeleton.bones.find(b=>!used.has(b)&&role(b.name)===rr&&rr);if(!sb)sb=s.skeleton.bones.find(b=>!used.has(b)&&canon(b.name)===canon(tb.name));if(sb){out[tb.name]=sb.name;used.add(sb)}}return out}
+function cfgFor(b){const k=b.name;return saved[k]||(saved[k]={mapX:'x',mapY:'y',mapZ:'z',rx:0,ry:0,rz:0,gx:1,gy:1,gz:1,seen:'sin evaluar',expected:'sin evaluar',sense:'sin evaluar',quality:'sin evaluar',note:''})}
+function persist(){localStorage.setItem(storeKey,JSON.stringify(saved));renderReport()}
+function axisVal(v,key){const neg=key[0]==='-',a=neg?key.slice(1):key;const x=v[a]||0;return neg?-x:x}
+function applyCorrections(){if(!targetSkin)return;for(const b of targetSkin.skeleton.bones){const c=saved[b.name];if(!c)continue;const rq=restQ.get(b.name);if(!rq)continue;const d=rq.clone().invert().multiply(b.quaternion).normalize();const e=new THREE.Euler().setFromQuaternion(d,'XYZ'),src={x:e.x,y:e.y,z:e.z};const out=new THREE.Euler(axisVal(src,c.mapX)*c.gx,axisVal(src,c.mapY)*c.gy,axisVal(src,c.mapZ)*c.gz,'XYZ');const qd=new THREE.Quaternion().setFromEuler(out);const qo=new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(c.rx),THREE.MathUtils.degToRad(c.ry),THREE.MathUtils.degToRad(c.rz),'XYZ'));b.quaternion.copy(rq).multiply(qo).multiply(qd).normalize()}}
+function selectBone(b){selectedBone=b;$('bone').value=b.name;const c=cfgFor(b);for(const id of['mapX','mapY','mapZ','seen','expected','quality'])$(id).value=c[id];for(const id of['rx','ry','rz','gx','gy','gz'])$(id).value=c[id];document.querySelectorAll('input[name=sense]').forEach(x=>x.checked=x.value===c.sense);$('note').value=c.note;updateValues();$('boneTitle').textContent=(role(b.name)||'sin rol')+' · '+b.name;$('boneMeta').textContent='padre: '+(b.parent?.name||'—')+' · guardado: '+(c.quality!=='sin evaluar'?'sí':'no');marker.position.set(0,0,0);axes.position.set(0,0,0);b.add(marker);b.add(axes);persist()}
+function updateValues(){for(const id of['rx','ry','rz'])$(id+'v').textContent=Math.round(Number($(id).value))+'°';for(const id of['gx','gy','gz'])$(id+'v').textContent=Number($(id).value).toFixed(2)}
+function syncControls(){if(!selectedBone)return;const c=cfgFor(selectedBone);for(const id of['mapX','mapY','mapZ','seen','expected','quality'])c[id]=$(id).value;for(const id of['rx','ry','rz','gx','gy','gz'])c[id]=Number($(id).value);c.sense=document.querySelector('input[name=sense]:checked')?.value||'sin evaluar';c.note=$('note').value;updateValues();persist()}
+function renderReport(){const rows=[];rows.push('RIG LAB KayKit → Hunyuan');rows.push('Modelo: main_rigged.fbx');rows.push('Clip actual: '+(currentClip?.name||'—'));rows.push('');const bones=targetSkin?.skeleton?.bones||[];let n=0;for(const b of bones){const c=saved[b.name];if(!c)continue;const changed=c.quality!=='sin evaluar'||c.note||c.seen!=='sin evaluar'||c.expected!=='sin evaluar'||c.rx||c.ry||c.rz||c.mapX!=='x'||c.mapY!=='y'||c.mapZ!=='z'||c.gx!==1||c.gy!==1||c.gz!==1;if(!changed)continue;n++;rows.push('['+n+'] '+(role(b.name)||'sin-rol')+' :: '+b.name);rows.push('  axes: X←'+c.mapX+'  Y←'+c.mapY+'  Z←'+c.mapZ);rows.push('  pose: rx='+c.rx+' ry='+c.ry+' rz='+c.rz+' deg');rows.push('  gain: gx='+c.gx+' gy='+c.gy+' gz='+c.gz);rows.push('  veo: '+c.seen+' | debería: '+c.expected+' | sentido: '+c.sense+' | resultado: '+c.quality);if(c.note)rows.push('  nota: '+c.note);rows.push('')}rows.push('TOTAL HUESOS EVALUADOS: '+n);$('report').value=rows.join('\n')}
+function setClip(c){if(!c)return;if(currentClip===c)return;for(const a of actions.values())a.stop();currentClip=c;let a=actions.get(c);if(!a){a=mixer.clipAction(c);actions.set(c,a)}a.reset().play();a.paused=!playing;a.timeScale=speed;$('animState').textContent=c.name}
+function init3d(){scene=new THREE.Scene();scene.background=new THREE.Color(0x8f9497);camera=new THREE.PerspectiveCamera(42,1,.01,100);camera.position.set(2.6,1.7,4.3);renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;scene.add(new THREE.HemisphereLight(0xffffff,0x4a4a4a,2.4));const d=new THREE.DirectionalLight(0xffffff,2);d.position.set(3,5,3);scene.add(d);const floor=new THREE.Mesh(new THREE.PlaneGeometry(20,20),new THREE.MeshStandardMaterial({color:0x777b7d,roughness:1}));floor.rotation.x=-Math.PI/2;scene.add(floor);marker=new THREE.Mesh(new THREE.SphereGeometry(.035,16,12),new THREE.MeshBasicMaterial({color:0xffe66d,depthTest:false}));marker.renderOrder=99;axes=new THREE.AxesHelper(.28);axes.renderOrder=98;clock=new THREE.Clock();resize();setupOrbit();requestAnimationFrame(loop)}
+function resize(){const r=canvas.getBoundingClientRect();renderer?.setSize(r.width,r.height,false);if(camera){camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}}
+function setupOrbit(){let ids=new Map(),lastDist=0,yaw=.55,pitch=.12,dist=4.8,target=new THREE.Vector3(0,1,0);function cam(){camera.position.set(target.x+Math.sin(yaw)*Math.cos(pitch)*dist,target.y+Math.sin(pitch)*dist,target.z+Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(target)}cam();canvas.addEventListener('pointerdown',e=>{ids.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!ids.has(e.pointerId))return;const old=ids.get(e.pointerId);ids.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ids.size===1){yaw-=(e.clientX-old.x)*.008;pitch=Math.max(-.9,Math.min(1.1,pitch-(e.clientY-old.y)*.008));cam()}else if(ids.size===2){const p=[...ids.values()],dd=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);if(lastDist)dist=Math.max(1.5,Math.min(9,dist-(dd-lastDist)*.012));lastDist=dd;cam()}});function end(e){ids.delete(e.pointerId);lastDist=0}canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);canvas.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(1.5,Math.min(9,dist+Math.sign(e.deltaY)*.35));cam()},{passive:false})}
+async function load(){try{const [fbx,g]=await Promise.all([new Promise((res,rej)=>new FBXLoader().load('main_rigged.fbx',res,undefined,rej)),new Promise((res,rej)=>new GLTFLoader().load('../fightermp/Barbarian.glb',res,undefined,rej))]);targetRoot=fbx;targetSkin=findSkin(fbx);sourceSkin=findSkin(g.scene);if(!targetSkin||!sourceSkin)throw Error('No encontré skeleton');boneMap=makeMap(targetSkin,sourceSkin);targetSkin.skeleton.pose();for(const b of targetSkin.skeleton.bones)restQ.set(b.name,b.quaternion.clone());const hip=(sourceSkin.skeleton.bones.find(b=>role(b.name)==='hips')||sourceSkin.skeleton.bones[0]).name;clips=[];for(const c of g.animations||[]){try{const rc=SkeletonUtils.retargetClip(targetSkin,sourceSkin,c,{names:boneMap,hip,preserveBoneMatrix:true,preserveBonePositions:true,useTargetMatrix:true});rc.name=c.name;clips.push(rc)}catch(e){console.warn(e)}}targetRoot.rotation.y=Math.PI/2;const box=new THREE.Box3().setFromObject(targetRoot),sz=new THREE.Vector3();box.getSize(sz);targetRoot.scale.setScalar(1.75/Math.max(sz.y,.001));box.setFromObject(targetRoot);const ctr=new THREE.Vector3();box.getCenter(ctr);targetRoot.position.x-=ctr.x;targetRoot.position.z-=ctr.z;targetRoot.position.y-=box.min.y;scene.add(targetRoot);scene.add(new THREE.SkeletonHelper(targetRoot));mixer=new THREE.AnimationMixer(targetSkin);$('clip').innerHTML=clips.map((c,i)=>'<option value="'+i+'">'+c.name+'</option>').join('');const bones=targetSkin.skeleton.bones.filter(b=>role(b.name));$('bone').innerHTML=bones.map(b=>'<option value="'+b.name+'">'+role(b.name)+' · '+b.name+'</option>').join('');const run=clips.find(c=>/running[_ ]?a/i.test(c.name))||clips.find(c=>/run/i.test(c.name))||clips[0];$('clip').value=String(clips.indexOf(run));setClip(run);selectBone(bones.find(b=>role(b.name)==='larm')||bones[0]);$('load').textContent='✓ '+Object.keys(boneMap).length+'/'+targetSkin.skeleton.bones.length+' huesos';$('load').className='pill ok';renderReport()}catch(e){$('load').textContent='ERROR: '+e.message;$('load').className='pill warn';console.error(e)}}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);if(mixer&&playing){mixer.update(dt*speed);applyCorrections()}renderer.render(scene,camera)}
+init3d();load();addEventListener('resize',resize);
+$('clip').addEventListener('change',()=>setClip(clips[Number($('clip').value)]));$('bone').addEventListener('change',()=>selectBone(targetSkin.skeleton.bones.find(b=>b.name===$('bone').value)));
+for(const id of['mapX','mapY','mapZ','rx','ry','rz','gx','gy','gz','seen','expected','quality','note'])$(id).addEventListener('input',syncControls);document.querySelectorAll('input[name=sense]').forEach(x=>x.addEventListener('change',syncControls));
+$('play').addEventListener('click',()=>{playing=!playing;for(const a of actions.values())a.paused=!playing;$('play').textContent=playing?'⏸ Pausa':'▶ Play'});$('slow').addEventListener('click',()=>{speed=speed===1?.5:1;$('slow').textContent=speed===.5?'1× velocidad':'½ velocidad'});
+$('resetBone').addEventListener('click',()=>{if(!selectedBone)return;delete saved[selectedBone.name];selectBone(selectedBone)});$('resetAll').addEventListener('click',()=>{if(confirm('¿Borrar TODA la calibración guardada?')){saved={};persist();selectBone(selectedBone)}});
+function moveBone(d){const opts=[...$('bone').options],i=Math.max(0,opts.findIndex(o=>o.value===$('bone').value)),n=(i+d+opts.length)%opts.length;selectBone(targetSkin.skeleton.bones.find(b=>b.name===opts[n].value))}$('prev').addEventListener('click',()=>moveBone(-1));$('next').addEventListener('click',()=>moveBone(1));$('markGood').addEventListener('click',()=>{$('quality').value='bien';syncControls();moveBone(1)});
+$('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('report').value);$('copy').textContent='✓ COPIADO';setTimeout(()=>$('copy').textContent='Copiar informe',1400)}catch{$('report').focus();$('report').select()}});$('download').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:1,model:'main_rigged.fbx',clip:currentClip?.name,bones:saved},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='riglab-hunyuan.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+</script>
+</body>
+</html>
