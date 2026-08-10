@@ -17,22 +17,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Repair known side-detection regex bug once
+      - name: Repair side detection without regex
         shell: python
         run: |
           from pathlib import Path
           p = Path('bomber3d/index.html')
           s = p.read_text(encoding='utf-8')
           old = s
-          s = s.replace("/[._\\\\- ]l$/i", "/[._ l-]l$/i")
-          s = s.replace("/^l[._\\\\- ]/i", "/^l[._ l-]/i")
-          s = s.replace("/[._\\\\- ]r$/i", "/[._ r-]r$/i")
-          s = s.replace("/^r[._\\\\- ]/i", "/^r[._ r-]/i")
-          s = s.replace("const GAME_VERSION='0.5.3'", "const GAME_VERSION='0.5.4'")
-          s = s.replace("LAST_CHANGE='Calibrador: detección robusta de izquierda/derecha en nombres de huesos'", "LAST_CHANGE='Fix regex de lateralidad + smoke test automático en Chromium'")
+          start = s.find('function sideOf(n){')
+          end = s.find('function boneCanon(n){', start)
+          if start >= 0 and end > start:
+              side_fn = """function sideOf(n){const raw=String(n||''),low=raw.toLowerCase();if(low.includes('left'))return'l';if(low.includes('right'))return'r';let spaced=low;for(const sep of ['.','_','-',' ','|',':','/','[',']','(',')'])spaced=spaced.split(sep).join(' ');const tokens=spaced.split(' ').filter(Boolean);if(tokens.includes('l')||tokens.includes('lf')||tokens.includes('lhs'))return'l';if(tokens.includes('r')||tokens.includes('rt')||tokens.includes('rhs'))return'r';const compact=Array.from(low).filter(ch=>(ch>='a'&&ch<='z')||(ch>='0'&&ch<='9')).join('');const parts=['upperarm','lowerarm','forearm','shoulder','upperleg','lowerleg','thigh','hand','arm','leg','foot','toe'];for(const part of parts){if(compact.endsWith(part+'l')||compact.startsWith('l'+part))return'l';if(compact.endsWith(part+'r')||compact.startsWith('r'+part))return'r'}return''}\n"""
+              s = s[:start] + side_fn + s[end:]
+          s = s.replace("const GAME_VERSION='0.5.4'", "const GAME_VERSION='0.5.5'")
+          s = s.replace("LAST_CHANGE='Fix regex de lateralidad + smoke test automático en Chromium'", "LAST_CHANGE='Detección L/R sin regex + smoke test automático en Chromium'")
           if s != old:
               p.write_text(s, encoding='utf-8')
-              print('Applied one-time repair')
+              print('Applied regex-free side detector')
           else:
               print('No repair needed')
 
@@ -42,7 +43,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add bomber3d/index.html
-            git commit -m "Fix Bomber3D lateral regex and bump v0.5.4"
+            git commit -m "Bomber3D v0.5.5: regex-free side detection"
             git push
           fi
 
