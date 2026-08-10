@@ -17,20 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply Bomber3D upgrades if needed
-        run: |
-          python bomber3d/upgrade_v060.py
-          python bomber3d/upgrade_riglab_v31.py
-          python bomber3d/upgrade_v032.py
-          python bomber3d/upgrade_riglab_v033.py
+      - name: Apply v0.6.1 and Rig Lab v3.4
+        run: python bomber3d/fix_v061_riglab_v34.py
 
-      - name: Commit upgrades if needed
+      - name: Commit generated fixes if needed
         run: |
           if ! git diff --quiet -- bomber3d/index.html bomber3d/rig-lab.html; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add bomber3d/index.html bomber3d/rig-lab.html
-            git commit -m "Rig Lab v3.3: correct Hunyuan global X orientation"
+            git commit -m "Bomber3D v0.6.1 + Rig Lab v3.4: orientation and direct loading"
             git push
           fi
 
@@ -57,15 +53,14 @@ jobs:
             const page = await browser.newPage();
             page.on('pageerror', e => errors.push('bomber pageerror: '+e.message));
             await page.goto('http://127.0.0.1:8000/bomber3d/', {waitUntil:'domcontentloaded', timeout:60000});
-            await page.waitForTimeout(3000);
             const result = await page.waitForFunction(() => {
               const f=document.querySelector('#game');
               const w=f && f.contentWindow;
               const bodyText=document.body?.innerText||'';
               if (/ERROR|SyntaxError/i.test(bodyText)) return {done:true,error:bodyText.slice(0,1200)};
-              if (w && w.__bomber3dRetarget) return {done:true,retarget:w.__bomber3dRetarget};
+              if (w && w.__bomber3dRetarget) return {done:true,retarget:w.__bomber3dRetarget,version:document.querySelector('#buildInfo')?.textContent||''};
               return false;
-            }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout esperando calibrador: '+e.message}));
+            }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Bomber3D: '+e.message}));
 
             const lab = await browser.newPage();
             lab.on('pageerror', e => errors.push('riglab pageerror: '+e.message));
@@ -79,7 +74,7 @@ jobs:
               const linked=document.querySelector('#linked');
               const ready=window.__rigLabReady;
               if (/ERROR/i.test(status)) return {done:true,error:status};
-              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && linked?.checked===true && ready.version==='3.3') return {done:true,status,hb,kb,handles,posControls,linked:linked.checked,ready};
+              if (status.startsWith('✓') && ready && hb>8 && kb>8 && handles===3 && posControls && linked?.checked===true && ready.version==='3.4' && ready.hVisible && ready.kVisible) return {done:true,status,hb,kb,handles,posControls,linked:linked.checked,ready};
               return false;
             }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Rig Lab: '+e.message}));
 
@@ -87,7 +82,7 @@ jobs:
             console.log('BOMBER',JSON.stringify(result,null,2));
             console.log('RIGLAB',JSON.stringify(labResult,null,2));
             await browser.close();
-            if (result.error || labResult.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6 || !labResult.ready) process.exit(1);
+            if (result.error || labResult.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6 || !/v0\.6\.1/.test(result.version||'') || !labResult.ready) process.exit(1);
           })();
           JS
           node bomber-smoke.cjs
