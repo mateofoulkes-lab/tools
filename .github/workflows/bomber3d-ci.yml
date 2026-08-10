@@ -60,7 +60,7 @@ jobs:
 
       - name: Browser smoke test
         run: |
-          cat > /tmp/bomber-smoke.js <<'JS'
+          cat > bomber-smoke.cjs <<'JS'
           const { chromium } = require('playwright');
           (async()=>{
             const browser = await chromium.launch({headless:true});
@@ -83,4 +83,4 @@ jobs:
             if (result.error || errors.length || !result.retarget) process.exit(1);
           })();
           JS
-          node /tmp/bomber-smoke.js
+          node bomber-smoke.cjs
