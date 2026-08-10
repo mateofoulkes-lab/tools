@@ -48,9 +48,10 @@ jobs:
           const { chromium } = require('playwright');
           (async()=>{
             const browser = await chromium.launch({headless:true});
-            const page = await browser.newPage();
             const errors=[];
-            page.on('pageerror', e => errors.push('pageerror: '+e.message));
+
+            const page = await browser.newPage();
+            page.on('pageerror', e => errors.push('bomber pageerror: '+e.message));
             await page.goto('http://127.0.0.1:8000/bomber3d/', {waitUntil:'domcontentloaded', timeout:60000});
             await page.waitForTimeout(3000);
             const result = await page.waitForFunction(() => {
@@ -61,10 +62,24 @@ jobs:
               if (w && w.__bomber3dRetarget) return {done:true,retarget:w.__bomber3dRetarget};
               return false;
             }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout esperando calibrador: '+e.message}));
-            if (errors.length) result.pageErrors=errors;
-            console.log(JSON.stringify(result,null,2));
+
+            const lab = await browser.newPage();
+            lab.on('pageerror', e => errors.push('riglab pageerror: '+e.message));
+            await lab.goto('http://127.0.0.1:8000/bomber3d/rig-lab.html', {waitUntil:'domcontentloaded', timeout:60000});
+            const labResult = await lab.waitForFunction(() => {
+              const status=document.querySelector('#load')?.textContent||'';
+              const clips=document.querySelector('#clip')?.options?.length||0;
+              const bones=document.querySelector('#bone')?.options?.length||0;
+              if (/ERROR/i.test(status)) return {done:true,error:status};
+              if (status.startsWith('✓') && clips>10 && bones>8) return {done:true,status,clips,bones};
+              return false;
+            }, null, {timeout:60000}).then(h=>h.jsonValue()).catch(e=>({done:true,error:'timeout Rig Lab: '+e.message}));
+
+            if (errors.length){ result.pageErrors=errors; labResult.pageErrors=errors; }
+            console.log('BOMBER',JSON.stringify(result,null,2));
+            console.log('RIGLAB',JSON.stringify(labResult,null,2));
             await browser.close();
-            if (result.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6) process.exit(1);
+            if (result.error || labResult.error || errors.length || !result.retarget || !result.retarget.calibrated || result.retarget.profileCount < 6 || !labResult.clips || !labResult.bones) process.exit(1);
           })();
           JS
           node bomber-smoke.cjs
