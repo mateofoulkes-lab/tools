@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Lonchera 3D — modelo estimado</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b0d12;--panel:#131722dd;--line:#2a3140;--text:#eef3ff;--muted:#9aa7bd;--accent:#2e7cf6}
+    *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+    #view{position:fixed;inset:0} canvas{display:block;width:100%;height:100%}
+    .panel{position:fixed;left:14px;top:14px;max-width:min(390px,calc(100vw - 28px));background:var(--panel);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:14px;padding:13px 14px;box-shadow:0 12px 35px #0008}
+    h1{font-size:16px;margin:0 0 4px}.sub{font-size:12px;color:var(--muted);line-height:1.35;margin-bottom:10px}.dims{display:grid;grid-template-columns:repeat(4,auto);gap:6px 12px;font-size:12px;margin-bottom:10px}.dims b{font-weight:650}.controls{display:flex;flex-wrap:wrap;gap:7px}
+    button{appearance:none;border:1px solid #354057;background:#1c2330;color:var(--text);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer}button:hover{background:#263044}button.primary{background:#1f67d5;border-color:#3985f7}.note{font-size:11px;color:var(--muted);margin-top:9px;line-height:1.35}
+    .badge{position:fixed;right:12px;bottom:12px;background:#10141dcc;border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:11px;color:var(--muted)}
+    @media(max-width:600px){.panel{top:8px;left:8px;max-width:calc(100vw - 16px)}.dims{grid-template-columns:repeat(2,auto)}}
+  </style>
+</head>
+<body>
+<div id="view"></div>
+<div class="panel">
+  <h1>Lonchera 3D — reconstrucción estimada</h1>
+  <div class="sub">Modelo paramétrico basado en el plano de referencia. Carcasa hueca, pared nominal de 2 mm y cantos redondeados.</div>
+  <div class="dims">
+    <span>Ancho <b>258 mm</b></span><span>Alto <b>196 mm</b></span><span>Prof. <b>60 mm</b></span><span>Pared <b>2 mm</b></span>
+  </div>
+  <div class="controls">
+    <button class="primary" id="openBtn">Abrir</button>
+    <button id="explodeBtn">Explosión</button>
+    <button id="wireBtn">Alambre</button>
+    <button id="resetBtn">Recentrar</button>
+    <button id="stlBtn">Exportar STL</button>
+  </div>
+  <div class="note">Las trabas, bisagra y geometría del asa son aproximadas porque no aparecen completas en las fotos. El cuerpo sí respeta las medidas generales del plano.</div>
+</div>
+<div class="badge">Arrastrar: rotar · rueda/pinza: zoom · botón derecho: desplazar</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+
+const W=258,H=196,D=60,T=2,R=18,HALF=D/2;
+const BLUE=0x1668d8, BLUE2=0x0f57b8, METAL=0xdde4ee, DARK=0x10151f;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0d12);
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,0.1,3000); camera.position.set(330,230,360);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; document.querySelector('#view').appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.target.set(0,0,0); controls.minDistance=180; controls.maxDistance=900;
+scene.add(new THREE.HemisphereLight(0xbfd8ff,0x202430,2.0)); const sun=new THREE.DirectionalLight(0xffffff,3.0); sun.position.set(200,300,250); sun.castShadow=true; scene.add(sun);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400),new THREE.MeshStandardMaterial({color:0x11151c,roughness:0.9})); floor.rotation.x=-Math.PI/2; floor.position.y=-130; floor.receiveShadow=true; scene.add(floor);
+const grid=new THREE.GridHelper(1000,40,0x29303d,0x1c222c); grid.position.y=-129.5; scene.add(grid);
+
+function roundedPath(path,x,y,w,h,r){
+  path.moveTo(x+r,y); path.lineTo(x+w-r,y); path.quadraticCurveTo(x+w,y,x+w,y+r); path.lineTo(x+w,y+h-r); path.quadraticCurveTo(x+w,y+h,x+w-r,y+h); path.lineTo(x+r,y+h); path.quadraticCurveTo(x,y+h,x,y+h-r); path.lineTo(x,y+r); path.quadraticCurveTo(x,y,x+r,y);
+}
+function rrShape(w,h,r,hole=false){const s=new THREE.Shape(); roundedPath(s,-w/2,-h/2,w,h,r); if(hole){const p=new THREE.Path(); roundedPath(p,-w/2+T,-h/2+T,w-2*T,h-2*T,Math.max(1,r-T)); s.holes.push(p)} return s}
+function extrude(shape,depth,mat,bevel=0.8){const g=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:bevel>0,bevelSegments:3,steps:1,bevelSize:bevel,bevelThickness:bevel,curveSegments:12}); g.translate(0,0,-depth/2); const m=new THREE.Mesh(g,mat); m.castShadow=m.receiveShadow=true; return m}
+const blueMat=new THREE.MeshStandardMaterial({color:BLUE,roughness:.38,metalness:.03}); const blueMat2=new THREE.MeshStandardMaterial({color:BLUE2,roughness:.45}); const metalMat=new THREE.MeshStandardMaterial({color:METAL,roughness:.28,metalness:.55}); const darkMat=new THREE.MeshStandardMaterial({color:DARK,roughness:.55});
+
+function makeHalf(front=true){
+  const g=new THREE.Group();
+  // front/back skin 2 mm
+  const plate=extrude(rrShape(W,H,R,false),T,blueMat,0.6); plate.position.z=front ? HALF-T/2 : -HALF+T/2; g.add(plate);
+  // perimeter wall, ring from skin to center seam
+  const rimDepth=HALF-T; const ring=extrude(rrShape(W,H,R,true),rimDepth,blueMat2,0.35); ring.position.z=front ? T/2 : -T/2; g.add(ring);
+  // recessed decorative panel on outside
+  const panel=extrude(rrShape(W-30,H-72,12,true),1.3,blueMat2,0.15); panel.scale.set(1,1,1); panel.position.z=front ? HALF+0.7 : -HALF-0.7; if(!front) panel.rotation.y=Math.PI; g.add(panel);
+  return g;
+}
+const base=new THREE.Group(), lidPivot=new THREE.Group(); scene.add(base,lidPivot);
+const frontHalf=makeHalf(true); const backHalf=makeHalf(false); base.add(backHalf); lidPivot.add(frontHalf);
+
+// Handle, approximated from front photo
+function makeHandle(){
+  const outer=new THREE.Shape(); roundedPath(outer,-44,-14,88,28,10); const hole=new THREE.Path(); roundedPath(hole,-30,-7,60,14,6); outer.holes.push(hole); const h=extrude(outer,10,blueMat,0.7); h.position.set(0,H/2+6,HALF+3); return h;
+}
+frontHalf.add(makeHandle());
+
+// Hinge on right side: segmented barrels at seam
+const hinge=new THREE.Group(); for(let y=-66;y<=66;y+=19){const c=new THREE.Mesh(new THREE.CylinderGeometry(4,4,14,18),metalMat); c.rotation.z=Math.PI/2; c.position.set(W/2+3,y,0); hinge.add(c)} base.add(hinge);
+
+// Two latches on left side, spanning the seam
+const latches=new THREE.Group(); for(const y of [-48,48]){const body=new THREE.Mesh(new THREE.BoxGeometry(8,28,12),metalMat); body.position.set(-W/2-4,y,0); body.geometry.translate(0,0,0); body.castShadow=true; latches.add(body); const clip=new THREE.Mesh(new THREE.BoxGeometry(5,18,18),darkMat); clip.position.set(-W/2-7,y,0); latches.add(clip)} base.add(latches);
+
+// Small feet / tabs near bottom corners
+for(const x of [-82,82]){const foot=new THREE.Mesh(new THREE.BoxGeometry(22,8,8),blueMat2); foot.position.set(x,-H/2-4,0); base.add(foot)}
+
+// Pivot at right hinge axis; relocate front half under pivot preserving closed pose
+lidPivot.position.set(W/2+4,0,0); frontHalf.position.x=-(W/2+4);
+
+let opened=false, exploded=false, wire=false; let targetAngle=0, explodeAmount=0;
+function setWire(v){scene.traverse(o=>{if(o.isMesh && o.material){const mats=Array.isArray(o.material)?o.material:[o.material]; mats.forEach(m=>{if('wireframe' in m)m.wireframe=v})}})}
+document.querySelector('#openBtn').onclick=()=>{opened=!opened; targetAngle=opened ? -THREE.MathUtils.degToRad(105) : 0; document.querySelector('#openBtn').textContent=opened?'Cerrar':'Abrir'};
+document.querySelector('#explodeBtn').onclick=()=>{exploded=!exploded; explodeAmount=exploded?28:0};
+document.querySelector('#wireBtn').onclick=()=>{wire=!wire;setWire(wire)};
+document.querySelector('#resetBtn').onclick=()=>{camera.position.set(330,230,360);controls.target.set(0,0,0);controls.update()};
+document.querySelector('#stlBtn').onclick=()=>{const exporter=new STLExporter(); const data=exporter.parse(scene,{binary:false}); const blob=new Blob([data],{type:'model/stl'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='lonchera_estimativa_258x196x60.stl'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+
+function animate(){requestAnimationFrame(animate); controls.update(); lidPivot.rotation.y += (targetAngle-lidPivot.rotation.y)*0.09; const z=explodeAmount; backHalf.position.z += ((-z)-backHalf.position.z)*0.08; frontHalf.position.z += (z-frontHalf.position.z)*0.08; renderer.render(scene,camera)} animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
