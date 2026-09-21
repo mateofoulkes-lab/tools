@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>IMU WebRTC Test</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101317;color:#f5f7fa;font-family:system-ui,Segoe UI,Arial,sans-serif}
+*{box-sizing:border-box}button,input{font:inherit}
+#screen,#phone{position:absolute;inset:0;display:none}
+.hud{position:absolute;left:14px;top:14px;background:#000b;padding:12px 14px;border-radius:12px;line-height:1.45;font-size:14px;z-index:20;min-width:230px}
+#status{font-weight:800}.good{color:#7CFC93}.warn{color:#ffd166}.bad{color:#ff6b6b}
+.cal{position:absolute;width:58px;height:58px;border:3px solid #667;border-radius:50%;transform:translate(-50%,-50%)}
+.cal:before,.cal:after{content:"";position:absolute;background:#667}.cal:before{width:2px;height:36px;left:25px;top:8px}.cal:after{height:2px;width:36px;left:8px;top:25px}
+.cal.on{border-color:#ffd166;box-shadow:0 0 24px #ffd166}.cal.on:before,.cal.on:after{background:#ffd166}.cal.ok{opacity:.15}
+#cursor{position:absolute;width:36px;height:36px;border:3px solid white;border-radius:50%;transform:translate(-50%,-50%);display:none;box-shadow:0 0 18px #fff}
+#cursor:before,#cursor:after{content:"";position:absolute;background:white}#cursor:before{width:2px;height:52px;left:14px;top:-11px}#cursor:after{height:2px;width:52px;left:-11px;top:14px}
+#centerMsg{position:absolute;left:50%;top:8%;transform:translateX(-50%);background:#000b;padding:10px 15px;border-radius:10px;font-weight:800;z-index:12;white-space:nowrap}
+#joinbox{position:absolute;right:18px;top:18px;background:#fff;color:#111;padding:12px;border-radius:12px;text-align:center;z-index:15}
+#joinbox small{display:block;max-width:190px;margin-top:7px;font-weight:700}#qr{width:180px;height:180px}
+#phone{background:#090b0e;touch-action:none}.phoneTop{position:absolute;left:12px;right:12px;top:12px;display:flex;justify-content:space-between;font-size:12px;color:#aab;z-index:5}
+.center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}.panel{max-width:420px;width:100%}
+.big{border:0;border-radius:16px;background:#f0b429;color:#111;font-weight:900;font-size:22px;padding:20px 28px;width:100%}.sub{color:#aab;margin-top:14px;font-size:14px;line-height:1.4}
+#tap{position:absolute;inset:0;border:0;background:transparent;display:none}.room{font-family:ui-monospace,Consolas,monospace;font-size:25px;font-weight:900;letter-spacing:3px;margin:8px 0}
+#manual{margin-top:12px;display:flex;gap:8px}#manual input{flex:1;padding:12px;border-radius:10px;border:1px solid #444;background:#151922;color:#fff;text-transform:uppercase}#manual button{padding:12px;border:0;border-radius:10px;font-weight:800}
+</style>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div id="screen">
+  <div class="hud">
+    <div id="status" class="warn">INICIANDO…</div>
+    <div>Sensor recibido: <b><span id="hz">0</span> Hz</b></div>
+    <div>RTT P2P: <b><span id="rtt">—</span> ms</b></div>
+    <div>One-way aprox.: <b><span id="ow">—</span> ms</b></div>
+    <div>Jitter RTT: <b><span id="jit">—</span> ms</b></div>
+    <div style="margin-top:7px;color:#9aa">Sala <span id="roomLabel"></span></div>
+  </div>
+  <div id="centerMsg">Esperando teléfono…</div>
+  <div id="cursor"></div>
+  <div id="joinbox"><div id="qr"></div><small>Escaneá con el celular</small><div class="room" id="roomBig"></div></div>
+</div>
+
+<div id="phone">
+  <div class="phoneTop"><span id="pstate">DESCONECTADO</span><span id="angles"></span></div>
+  <div class="center" id="phoneStart"><div class="panel">
+    <button class="big" id="start">CONECTAR Y ACTIVAR SENSORES</button>
+    <div class="sub">Después apuntá el celular a cada blanco de la PC y tocá la pantalla.</div>
+    <div id="manual"><input id="roomInput" placeholder="CÓDIGO DE SALA"><button id="join">ENTRAR</button></div>
+  </div></div>
+  <button id="tap"></button>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), qs=new URLSearchParams(location.search);
+let mode=qs.get('mode');
+if(!mode){ mode = /Android|iPhone|iPad/i.test(navigator.userAgent)?'phone':'screen'; }
+const isPhone=mode==='phone';
+$('#screen').style.display=isPhone?'none':'block'; $('#phone').style.display=isPhone?'block':'none';
+const targets=[{x:.08,y:.12},{x:.92,y:.12},{x:.92,y:.88},{x:.08,y:.88}];
+let room=(qs.get('room')||'').toUpperCase();
+if(!room && !isPhone) room=Math.random().toString(36).slice(2,7).toUpperCase();
+if(isPhone && room) $('#roomInput').value=room;
+let peer,conn,step=0,recv=0,lastStat=performance.now(),rtts=[],pingSeq=0,pending=new Map();
+let sens={last:null,a:0,b:0,g:0},samples=[],cal=null,lastSend=0,filtered={x:.5,y:.5};
+
+if(!isPhone){
+  targets.forEach((p,i)=>{const d=document.createElement('div');d.id='c'+i;d.className='cal';d.style.left=p.x*100+'%';d.style.top=p.y*100+'%';$('#screen').appendChild(d)});
+  $('#roomLabel').textContent=room; $('#roomBig').textContent=room; updateCalUI();
+  const u=new URL(location.href);u.search='?mode=phone&room='+room;
+  new QRCode($('#qr'),{text:u.toString(),width:180,height:180,correctLevel:QRCode.CorrectLevel.M});
+  startScreen();
+}
+
+function startScreen(){
+  peer=new Peer('imu-'+room+'-pc');
+  peer.on('open',()=>setStatus('ESPERANDO TELÉFONO','warn'));
+  peer.on('connection',c=>{ if(conn&&conn.open) conn.close(); conn=c; setupConn(false); });
+  peer.on('error',e=>{setStatus('ERROR: '+e.type,'bad');console.error(e)});
+}
+
+async function startPhone(){
+  room=$('#roomInput').value.trim().toUpperCase(); if(!room)return alert('Ingresá el código de sala');
+  try{
+    if(typeof DeviceOrientationEvent?.requestPermission==='function'){
+      const p=await DeviceOrientationEvent.requestPermission(); if(p!=='granted')throw Error('Permiso de sensores denegado');
+    }
+    $('#phoneStart').style.display='none'; $('#tap').style.display='block'; $('#pstate').textContent='CONECTANDO…';
+    window.addEventListener('deviceorientation',onOri,true);
+    peer=new Peer();
+    peer.on('open',()=>{conn=peer.connect('imu-'+room+'-pc',{reliable:false,serialization:'json'});setupConn(true)});
+    peer.on('error',e=>{$('#pstate').textContent='ERROR '+e.type;console.error(e)});
+  }catch(e){alert(e.message||e)}
+}
+$('#start')?.addEventListener('click',startPhone); $('#join')?.addEventListener('click',startPhone);
+
+function setupConn(phoneSide){
+  conn.on('open',()=>{
+    if(phoneSide){$('#pstate').textContent='CONECTADO · CAL 1/4';conn.send({t:'hello'});}
+    else{setStatus('CONECTADO','good');$('#centerMsg').textContent='Apuntá al blanco 1 y tocá el celular';startPings();}
+  });
+  conn.on('data',m=>{
+    if(m.t==='hello'&&!isPhone){setStatus('CONECTADO','good')}
+    if(m.t==='aim'&&!isPhone){recv++; $('#cursor').style.left=(m.x*100)+'%';$('#cursor').style.top=(m.y*100)+'%';}
+    if(m.t==='step'&&!isPhone){step=m.n;updateCalUI();$('#centerMsg').textContent=step<4?'Calibración '+(step+1)+'/4':'CAL OK · mové el celular';if(step>=4)$('#cursor').style.display='block';}
+    if(m.t==='ping'&&isPhone&&conn?.open)conn.send({t:'pong',id:m.id});
+    if(m.t==='pong'&&!isPhone){const t0=pending.get(m.id);if(t0!=null){const r=performance.now()-t0;pending.delete(m.id);rtts.push(r);if(rtts.length>60)rtts.shift();}}
+  });
+  conn.on('close',()=>{if(isPhone)$('#pstate').textContent='DESCONECTADO';else setStatus('DESCONECTADO','bad')});
+}
+function startPings(){setInterval(()=>{if(conn?.open){const id=++pingSeq;pending.set(id,performance.now());conn.send({t:'ping',id});setTimeout(()=>pending.delete(id),2000)}},120)}
+
+setInterval(()=>{
+  if(isPhone)return; const now=performance.now(),dt=(now-lastStat)/1000,h=Math.round(recv/dt);recv=0;lastStat=now;$('#hz').textContent=h;
+  if(rtts.length){const sorted=[...rtts].sort((a,b)=>a-b),med=sorted[Math.floor(sorted.length/2)],mean=rtts.reduce((a,b)=>a+b,0)/rtts.length,sd=Math.sqrt(rtts.reduce((a,b)=>a+(b-mean)**2,0)/rtts.length);$('#rtt').textContent=med.toFixed(1);$('#ow').textContent=(med/2).toFixed(1);$('#jit').textContent=sd.toFixed(1);}
+},1000);
+
+function setStatus(t,c){$('#status').textContent=t;$('#status').className=c}
+function updateCalUI(){if(isPhone)return;targets.forEach((_,i)=>{$('#c'+i).className='cal '+(i<step?'ok':i===step?'on':'')})}
+
+function onOri(e){
+  const r={a:num(e.alpha),b:num(e.beta),g:num(e.gamma)};
+  if(!sens.last){sens.a=r.a;sens.b=r.b;sens.g=r.g;sens.last=r}else{sens.a+=delta(r.a,sens.last.a);sens.b+=delta(r.b,sens.last.b);sens.g+=delta(r.g,sens.last.g);sens.last=r}
+  $('#angles').textContent=`α ${sens.a.toFixed(0)} β ${sens.b.toFixed(0)} γ ${sens.g.toFixed(0)}`;
+  if(!cal||!conn?.open)return; const p=applyCal(cal,sens);if(!p)return;
+  filtered.x+=(clamp(p.x)-filtered.x)*.58; filtered.y+=(clamp(p.y)-filtered.y)*.58;
+  const now=performance.now(); if(now-lastSend>8){lastSend=now;conn.send({t:'aim',x:filtered.x,y:filtered.y});}
+}
+$('#tap')?.addEventListener('pointerdown',e=>{e.preventDefault();if(!sens.last||samples.length>=4)return;samples.push({a:sens.a,b:sens.b,g:sens.g});const n=samples.length;if(conn?.open)conn.send({t:'step',n});$('#pstate').textContent=n<4?'CONECTADO · CAL '+(n+1)+'/4':'CONECTADO · CAL OK';navigator.vibrate?.(25);if(n===4){cal=buildCal(samples);if(!cal)alert('Calibración inválida. Recargá y repetí.')}});
+
+function buildCal(s){const pairs=[['a','b'],['a','g'],['b','g']];let best=null;for(const ax of pairs){const pts=s.map(v=>({x:v[ax[0]],y:v[ax[1]]})),ar=Math.abs(area(pts));if(!best||ar>best.ar)best={ax,pts,ar}}if(!best||best.ar<8)return null;const H=homography(best.pts,targets);return H?{ax:best.ax,H}:null}
+function applyCal(m,s){const x=s[m.ax[0]],y=s[m.ax[1]],h=m.H,d=h[6]*x+h[7]*y+1;if(Math.abs(d)<1e-8)return null;return{x:(h[0]*x+h[1]*y+h[2])/d,y:(h[3]*x+h[4]*y+h[5])/d}}
+function homography(src,dst){const A=[],b=[];for(let i=0;i<4;i++){const x=src[i].x,y=src[i].y,X=dst[i].x,Y=dst[i].y;A.push([x,y,1,0,0,0,-X*x,-X*y]);b.push(X);A.push([0,0,0,x,y,1,-Y*x,-Y*y]);b.push(Y)}return solve(A,b)}
+function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;if(Math.abs(M[p][c])<1e-10)return null;[M[c],M[p]]=[M[p],M[c]];const q=M[c][c];for(let j=c;j<=n;j++)M[c][j]/=q;for(let r=0;r<n;r++)if(r!==c){const f=M[r][c];for(let j=c;j<=n;j++)M[r][j]-=f*M[c][j]}}return M.map(r=>r[n])}
+function area(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y}return a/2}
+function delta(a,b){let d=a-b;while(d>180)d-=360;while(d<-180)d+=360;return d}function num(v){v=Number(v);return Number.isFinite(v)?v:0}function clamp(v){return Math.max(0,Math.min(1,v))}
+</script>
+</body>
+</html>
