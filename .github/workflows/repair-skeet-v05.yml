@@ -1,0 +1,94 @@
+name: Repair Skeet v0.5
+
+on:
+  push:
+    paths:
+      - '.github/workflows/repair-skeet-v05.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore complete file and apply v0.5 patches
+        run: |
+          git show 17bd139f56b6ae92320c2955ba8a7eb9c508f266:skeet.html > skeet.html
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('skeet.html')
+          s=p.read_text(encoding='utf-8')
+
+          # visible version badge, CSS only
+          badge='.screen::after,.controller::after{content:"v0.5";position:absolute;right:7px;bottom:5px;z-index:9999;font:600 10px/1 system-ui,sans-serif;letter-spacing:.04em;color:rgba(255,255,255,.48);text-shadow:0 1px 2px #000;pointer-events:none}'
+          if 'content:"v0.5"' not in s:
+              s=s.replace('</style>',badge+'\n</style>',1)
+
+          # phone audio refs
+          old='orientationHandler=useRef(null);'
+          new='orientationHandler=useRef(null),fireAudio=useRef(null),reloadAudio=useRef(null),phoneShots=useRef(0);'
+          s=s.replace(old,new,1)
+
+          # do not run speech recognition while calibrating; prepare phone audio here
+          s=s.replace(
+              'sensor.current={ready:false,last:null,a:0,b:0,g:0};samples.current=[];cal.current=null;filtered.current={x:.5,y:.5};setCalStep(0);',
+              'if(orientationHandler.current)removeEventListener("deviceorientation",orientationHandler.current,true);sensor.current={ready:false,last:null,a:0,b:0,g:0};samples.current=[];cal.current=null;filtered.current={x:.5,y:.5};phoneShots.current=0;fireAudio.current=new Audio("fire.mp3");reloadAudio.current=new Audio("reload.mp3");fireAudio.current.preload="auto";reloadAudio.current.preload="auto";setCalStep(0);',1)
+          s=s.replace('setSensorLabel("esperando orientación...");orientationHandler.current=onOrientation;', 'setSensorLabel("esperando orientación...");setVoiceLabel("voz se activa al terminar la calibración");orientationHandler.current=onOrientation;',1)
+          s=s.replace('publishAction({type:"controllerReady",clientId:CLIENT_ID,sentAt:Date.now()});startVoice()', 'publishAction({type:"controllerReady",clientId:CLIENT_ID,sentAt:Date.now()})',1)
+          s=s.replace('navigator.vibrate?.([35,35,35])}return', 'navigator.vibrate?.([35,35,35]);startVoice()}return',1)
+
+          # phone fire/reload audio
+          old_shoot=' function shoot(){const a=latestAim.current;navigator.vibrate?.(35);publishAction({type:"shoot",x:a.x,y:a.y,clientId:CLIENT_ID,sentAt:Date.now()})}'
+          new_shoot=' function playPhoneAudio(ref,volume=1){try{const proto=ref.current;if(!proto)return;const a=proto.cloneNode(true);a.volume=volume;a.currentTime=0;const q=a.play();if(q?.catch)q.catch(()=>{})}catch{}}\n function shoot(){const a=latestAim.current;phoneShots.current++;playPhoneAudio(fireAudio,1);if(phoneShots.current%2===0)setTimeout(()=>playPhoneAudio(reloadAudio,.95),110);navigator.vibrate?.(35);publishAction({type:"shoot",x:a.x,y:a.y,clientId:CLIENT_ID,sentAt:Date.now()})}'
+          s=s.replace(old_shoot,new_shoot,1)
+
+          # fuzzy voice matching instead of exact words
+          old_contains=' function containsWord(text,words){const n=normalizeSpeech(text);return words.some(w=>new RegExp(`(^|\\\\s)${w}(\\\\s|$)`).test(n))}'
+          fuzzy=' function levenshtein(a,b){const m=a.length,n=b.length,d=Array.from({length:m+1},()=>Array(n+1).fill(0));for(let i=0;i<=m;i++)d[i][0]=i;for(let j=0;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}\n function fuzzyMatch(text,words,strict=false){const tokens=normalizeSpeech(text).split(" ").filter(Boolean);let best=null;for(const token of tokens)for(const word of words){const dist=levenshtein(token,word),maxLen=Math.max(token.length,word.length),sim=1-dist/maxLen;if(!best||sim>best.sim)best={token,word,dist,sim}}if(!best)return null;const ok=strict?(best.sim>=.72&&best.dist<=2):(best.sim>=.58&&best.dist<=2);return ok?best:null}'
+          if old_contains in s:
+              s=s.replace(old_contains,fuzzy,1)
+          else:
+              s=s.replace(' function startVoice(){',fuzzy+'\n function startVoice(){',1)
+
+          lines=s.splitlines()
+          for i,line in enumerate(lines):
+              if line.startswith(' function startVoice(){'):
+                  lines[i]=' function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){setVoiceLabel("voz no disponible · usá el gatillo");return}try{voiceWanted.current=true;recognition.current?.abort?.();const r=new SR();recognition.current=r;r.lang="es-AR";r.continuous=true;r.interimResults=true;r.maxAlternatives=5;r.onstart=()=>setVoiceLabel("🎙 PULL · DISCO · TIRA · AHORA · DOBLE");r.onerror=e=>setVoiceLabel(`micrófono: ${e.error||"error"}`);r.onresult=e=>{let heard="";for(let i=e.resultIndex;i<e.results.length;i++){for(let j=0;j<e.results[i].length;j++){const t=(e.results[i][j].transcript||"").trim();if(!heard&&t)heard=t;const dm=fuzzyMatch(t,DOUBLE_WORDS,true);if(dm){setVoiceLabel(`✅ DOBLE ← “${t}”`);sendLaunch("double");return}const sm=fuzzyMatch(t,SINGLE_WORDS,false);if(sm){setVoiceLabel(`✅ ${sm.word.toUpperCase()} ← “${t}”`);sendLaunch("pull");return}}}if(heard)setVoiceLabel(`👂 “${heard}”`)};r.onend=()=>{if(voiceWanted.current)setTimeout(()=>{try{r.start()}catch{}},250)};r.start()}catch(e){setVoiceLabel(`No pude iniciar voz: ${e?.message||"error"}`)}}'
+                  break
+          s='\n'.join(lines)+'\n'
+
+          # remove shotgun mp3 playback from PC; keep launcher/impact synth audio
+          s=s.replace('let recoil=0,last=performance.now(),dead=false,audio=null,shotCount=0;','let recoil=0,last=performance.now(),dead=false,audio=null;',1)
+          for fragment in [
+              ' const fireProto=new Audio("fire.mp3"),reloadProto=new Audio("reload.mp3");fireProto.preload="auto";reloadProto.preload="auto";\n',
+              ' function playClip(proto,volume=1){try{const a=proto.cloneNode(true);a.volume=volume;a.currentTime=0;const p=a.play();if(p?.catch)p.catch(()=>{});return a}catch{return null}}\n',
+              ' function warmClips(){for(const p of [fireProto,reloadProto]){try{p.muted=true;const q=p.play();if(q?.then)q.then(()=>{p.pause();p.currentTime=0;p.muted=false}).catch(()=>{p.muted=false})}catch{}}}\n',
+              ' addEventListener("pointerdown",()=>{ensureAudio();warmClips()},{once:true});\n',
+              ' addEventListener("keydown",()=>{ensureAudio();warmClips()},{once:true});\n'
+          ]:
+              s=s.replace(fragment,'',1)
+          s=s.replace('function shoot(x=aim.x,y=aim.y){ensureAudio();playClip(fireProto,1);shotCount++;if(shotCount%2===0)setTimeout(()=>playClip(reloadProto,.95),180);', 'function shoot(x=aim.x,y=aim.y){ensureAudio();',1)
+          s=s.replace(' function ensureAudio(){try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume?.()}catch{}}\n', ' function ensureAudio(){try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume?.()}catch{}}\n addEventListener("pointerdown",ensureAudio,{once:true});\n addEventListener("keydown",ensureAudio,{once:true});\n',1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+
+          # extract module JS and syntax-check before committing
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('skeet.html').read_text(encoding='utf-8')
+          a=s.index('<script type="module">')+len('<script type="module">')
+          b=s.index('</script>',a)
+          Path('/tmp/skeet.mjs').write_text(s[a:b],encoding='utf-8')
+          PY
+          node --check /tmp/skeet.mjs
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add skeet.html
+          git commit -m 'Repair skeet v0.5'
+          git push
