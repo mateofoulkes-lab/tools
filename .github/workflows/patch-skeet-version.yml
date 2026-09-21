@@ -1,0 +1,38 @@
+name: Patch Skeet Version
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-skeet-version.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add visible version badge
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('skeet.html')
+          s = p.read_text(encoding='utf-8')
+          rule = '.screen::after,.controller::after{content:"v0.5";position:absolute;right:7px;bottom:5px;z-index:9999;font:600 10px/1 system-ui,sans-serif;letter-spacing:.04em;color:rgba(255,255,255,.48);text-shadow:0 1px 2px #000;pointer-events:none}'
+          if 'content:"v0.5"' not in s:
+              marker = '.audio-hint.hidden{display:none}'
+              if marker in s:
+                  s = s.replace(marker, marker + '\n' + rule, 1)
+              else:
+                  s = s.replace('</style>', rule + '\n</style>', 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit version badge
+        run: |
+          if git diff --quiet -- skeet.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add skeet.html
+          git commit -m 'Show skeet version v0.5'
+          git push
