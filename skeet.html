@@ -5,41 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Skeet Remote</title>
 <style>
-html,body,#root{margin:0;width:100%;height:100%;overflow:hidden;background:#080b0e;color:#fff;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
-*{box-sizing:border-box}
-.screen{position:relative;width:100%;height:100%;overflow:hidden;background:#111}
-.stage{position:absolute;inset:0}
-.stage canvas{display:block;width:100%;height:100%}
-.hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 2px 5px #000}
-.topbar{position:absolute;left:18px;right:18px;top:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-.brand{font-weight:900;letter-spacing:.12em;font-size:18px}.stats{font-weight:800;font-size:18px;text-align:right}.sub{font-size:12px;opacity:.8;font-weight:600;margin-top:3px}
-.crosshair{position:absolute;width:36px;height:36px;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 4px #000);transition:opacity .15s}
-.crosshair:before,.crosshair:after{content:"";position:absolute;background:#fff;border-radius:2px}.crosshair:before{left:17px;top:0;width:2px;height:36px}.crosshair:after{left:0;top:17px;width:36px;height:2px}.crosshair i{position:absolute;left:13px;top:13px;width:10px;height:10px;border:2px solid #fff;border-radius:50%}
-.cal-target{position:absolute;width:54px;height:54px;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.45);border-radius:50%;opacity:.55;transition:.12s}
-.cal-target:before,.cal-target:after{content:"";position:absolute;background:rgba(255,255,255,.65)}.cal-target:before{width:2px;height:72px;left:23px;top:-12px}.cal-target:after{height:2px;width:72px;left:-12px;top:23px}
-.cal-target.active{opacity:1;border-color:#ffd54a;box-shadow:0 0 0 8px rgba(255,213,74,.15),0 0 28px rgba(255,213,74,.9);transform:translate(-50%,-50%) scale(1.12)}
-.cal-target.done{opacity:.2}
-.center-message{position:absolute;left:50%;top:14%;transform:translateX(-50%);padding:10px 14px;background:rgba(0,0,0,.4);backdrop-filter:blur(5px);border-radius:12px;font-weight:800;text-align:center;max-width:min(540px,90vw)}
-.toast{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:clamp(38px,8vw,92px);font-weight:1000;letter-spacing:.04em;opacity:0;transition:opacity .12s,transform .2s}.toast.show{opacity:1;transform:translate(-50%,-50%) scale(1.05)}
-.controller{position:relative;width:100%;height:100%;background:#050505;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-.activate-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;background:radial-gradient(circle at 50% 35%,#252b31,#050505 65%)}
-.activate-card{width:min(460px,100%)}
-.activate-card h1{font-size:34px;margin:0 0 10px}.activate-card p{color:#bbb;line-height:1.45;margin:0 0 22px}
-.activate{width:100%;padding:22px 18px;border:0;border-radius:18px;background:#f0b429;color:#111;font-size:21px;font-weight:950;cursor:pointer}
-.error{color:#ff8f8f;white-space:pre-wrap;margin-top:14px;font-size:14px}
-.trigger{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;background:radial-gradient(circle at 50% 48%,#2d353c,#0b0d0f 70%);color:#fff;touch-action:none;cursor:pointer}.trigger:active{background:radial-gradient(circle at 50% 48%,#49545e,#111 72%)}
-.controller-overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}
-.big{font-size:clamp(38px,11vw,72px);font-weight:1000;letter-spacing:.03em}.small{margin-top:12px;color:#c9c9c9;font-size:15px;max-width:380px;line-height:1.4}.sensor{position:absolute;left:16px;right:16px;top:14px;display:flex;justify-content:space-between;font-size:12px;color:#aaa}.voice{position:absolute;left:16px;right:16px;bottom:18px;text-align:center;color:#9fd69f;font-size:13px}.voice.off{color:#d4a0a0}
-.flash{position:absolute;inset:0;background:white;opacity:0;pointer-events:none;transition:opacity .08s}.flash.on{opacity:.11}
+html,body,#root{margin:0;width:100%;height:100%;overflow:hidden;background:#080b0e;color:#fff;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}*{box-sizing:border-box}
+.screen,.controller{position:relative;width:100%;height:100%;overflow:hidden}.stage{position:absolute;inset:0}.stage canvas{display:block;width:100%;height:100%}.hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 2px 5px #000}
+.topbar{position:absolute;left:18px;right:18px;top:14px;display:flex;justify-content:space-between}.brand{font-weight:900;letter-spacing:.12em;font-size:18px}.stats{font-weight:800;font-size:18px;text-align:right}.sub{font-size:12px;opacity:.8;font-weight:600;margin-top:3px}
+.crosshair{position:absolute;width:36px;height:36px;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 4px #000)}.crosshair:before,.crosshair:after{content:"";position:absolute;background:#fff;border-radius:2px}.crosshair:before{left:17px;top:0;width:2px;height:36px}.crosshair:after{left:0;top:17px;width:36px;height:2px}.crosshair i{position:absolute;left:13px;top:13px;width:10px;height:10px;border:2px solid #fff;border-radius:50%}
+.cal-target{position:absolute;width:54px;height:54px;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.45);border-radius:50%;opacity:.55}.cal-target:before,.cal-target:after{content:"";position:absolute;background:rgba(255,255,255,.65)}.cal-target:before{width:2px;height:72px;left:23px;top:-12px}.cal-target:after{height:2px;width:72px;left:-12px;top:23px}.cal-target.active{opacity:1;border-color:#ffd54a;box-shadow:0 0 0 8px rgba(255,213,74,.15),0 0 28px rgba(255,213,74,.9);transform:translate(-50%,-50%) scale(1.12)}.cal-target.done{opacity:.18}
+.center-message{position:absolute;left:50%;top:14%;transform:translateX(-50%);padding:10px 14px;background:rgba(0,0,0,.42);backdrop-filter:blur(5px);border-radius:12px;font-weight:800;text-align:center;max-width:min(560px,90vw)}.toast{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:clamp(38px,8vw,92px);font-weight:1000;opacity:0}.toast.show{opacity:1}
+.controller{background:#050505;touch-action:none;user-select:none;-webkit-user-select:none}.activate-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;background:radial-gradient(circle at 50% 35%,#252b31,#050505 65%)}.activate-card{width:min(460px,100%)}.activate-card h1{font-size:34px;margin:0 0 10px}.activate-card p{color:#bbb;line-height:1.45;margin:0 0 22px}.activate{width:100%;padding:22px 18px;border:0;border-radius:18px;background:#f0b429;color:#111;font-size:21px;font-weight:950}.error{color:#ff8f8f;white-space:pre-wrap;margin-top:14px;font-size:14px}
+.trigger{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;background:radial-gradient(circle at 50% 48%,#2d353c,#0b0d0f 70%);color:#fff;touch-action:none}.trigger:active{background:radial-gradient(circle at 50% 48%,#49545e,#111 72%)}.controller-overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}.big{font-size:clamp(38px,11vw,72px);font-weight:1000}.small{margin-top:12px;color:#c9c9c9;font-size:15px;max-width:380px;line-height:1.4}.sensor{position:absolute;left:16px;right:16px;top:14px;display:flex;justify-content:space-between;font-size:12px;color:#aaa}.voice{position:absolute;left:16px;right:16px;bottom:18px;text-align:center;color:#9fd69f;font-size:13px}.voice.off{color:#d4a0a0}.flash{position:absolute;inset:0;background:white;opacity:0}.flash.on{opacity:.11}
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-  }
-}
-</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
 </head>
 <body>
 <script>window.APP_ID="b1444761-2c88-4438-ae19-4c29c727d227";</script>
@@ -52,443 +27,73 @@ import * as THREE from "three";
 import {FBXLoader} from "three/addons/loaders/FBXLoader.js";
 
 const db=init({appId:window.APP_ID});
-const params=new URLSearchParams(location.search);
-const ROOM_ID=params.get("room")||"main";
+const qs=new URLSearchParams(location.search),ROOM_ID=qs.get("room")||"main";
 const room=db.room("skeet-shooting",ROOM_ID);
 const CLIENT_ID=localStorage.skeetClientId??(localStorage.skeetClientId=crypto.randomUUID());
 const MODE=detectMode();
-const CAL_CORNERS=[
-  {x:.08,y:.10,name:"SUPERIOR IZQUIERDA"},
-  {x:.92,y:.10,name:"SUPERIOR DERECHA"},
-  {x:.92,y:.90,name:"INFERIOR DERECHA"},
-  {x:.08,y:.90,name:"INFERIOR IZQUIERDA"}
-];
+const C=[{x:.08,y:.10,name:"SUPERIOR IZQUIERDA"},{x:.92,y:.10,name:"SUPERIOR DERECHA"},{x:.92,y:.90,name:"INFERIOR DERECHA"},{x:.08,y:.90,name:"INFERIOR IZQUIERDA"}];
 
 function App(){
-  const publishAim=db.rooms.usePublishTopic(room,"aim");
-  const publishAction=db.rooms.usePublishTopic(room,"action");
-  const stageRef=useRef(null);
-  const gameRef=useRef(null);
-  const latestAimRef=useRef({x:.5,y:.5});
-  const lastAimSend=useRef(0);
-  const sensorRef=useRef({ready:false,lastRaw:null,a:0,b:0,g:0});
-  const calSamples=useRef([]);
-  const calModel=useRef(null);
-  const filteredAim=useRef({x:.5,y:.5});
-  const recognitionRef=useRef(null);
-  const voiceWantedRef=useRef(false);
-  const pullCooldownRef=useRef(0);
-  const [screenCalStep,setScreenCalStep]=useState(0);
-  const [controllerState,setControllerState]=useState("activate");
-  const [calStep,setCalStep]=useState(0);
-  const [sensorLabel,setSensorLabel]=useState("sensores apagados");
-  const [voiceLabel,setVoiceLabel]=useState("micrófono apagado");
-  const [error,setError]=useState("");
-  const [aimUI,setAimUI]=useState({x:.5,y:.5});
-  const [score,setScore]=useState({shots:0,hits:0});
-  const [toast,setToast]=useState("");
-  const [flash,setFlash]=useState(false);
+ const publishAim=db.rooms.usePublishTopic(room,"aim"),publishAction=db.rooms.usePublishTopic(room,"action");
+ const stageRef=useRef(null),gameRef=useRef(null),latestAim=useRef({x:.5,y:.5}),sensor=useRef({ready:false,last:null,a:0,b:0,g:0}),samples=useRef([]),cal=useRef(null),filtered=useRef({x:.5,y:.5}),lastSend=useRef(0),recognition=useRef(null),voiceWanted=useRef(false),pullCooldown=useRef(0),controllerStateRef=useRef("activate"),orientationHandler=useRef(null);
+ const [screenStep,setScreenStep]=useState(0),[controllerState,setControllerState]=useState("activate"),[calStep,setCalStep]=useState(0),[sensorLabel,setSensorLabel]=useState("sensores apagados"),[voiceLabel,setVoiceLabel]=useState("micrófono apagado"),[error,setError]=useState(""),[aim,setAim]=useState({x:.5,y:.5}),[score,setScore]=useState({shots:0,hits:0}),[toast,setToast]=useState(""),[flash,setFlash]=useState(false);
+ function setControllerMode(v){controllerStateRef.current=v;setControllerState(v)}
+ function pop(t,ms=600){setToast(t);setTimeout(()=>setToast(""),ms)}
 
-  db.rooms.useTopicEffect(room,"aim",msg=>{
-    if(!msg||msg.clientId===CLIENT_ID||MODE!=="screen")return;
-    if(msg.type==="aim"){
-      const next={x:clamp(Number(msg.x),0,1),y:clamp(Number(msg.y),0,1)};
-      latestAimRef.current=next;
-      setAimUI(next);
-      setScreenCalStep(4);
-      gameRef.current?.setAim(next.x,next.y);
-    }
-  });
+ db.rooms.useTopicEffect(room,"aim",msg=>{if(!msg||msg.clientId===CLIENT_ID||MODE!=="screen")return;if(msg.type==="aim"){const p={x:clamp(+msg.x,0,1),y:clamp(+msg.y,0,1)};latestAim.current=p;setAim(p);setScreenStep(4);gameRef.current?.setAim(p.x,p.y)}});
+ db.rooms.useTopicEffect(room,"action",msg=>{if(!msg||msg.clientId===CLIENT_ID||MODE!=="screen")return;
+  if(msg.type==="controllerReady"){setScreenStep(0);pop("CALIBRACIÓN",800)}
+  else if(msg.type==="calibration")setScreenStep(clamp(+msg.step||0,0,3));
+  else if(msg.type==="calibrated"){setScreenStep(4);pop("LISTO",900)}
+  else if(msg.type==="pull"){gameRef.current?.pull();pop("PULL!",420)}
+  else if(msg.type==="shoot"){const x=clamp(+msg.x,0,1),y=clamp(+msg.y,0,1);latestAim.current={x,y};setAim({x,y});const hit=gameRef.current?.shoot(x,y)===true;setScore(s=>({shots:s.shots+1,hits:s.hits+(hit?1:0)}));setFlash(true);setTimeout(()=>setFlash(false),70);if(hit)pop("¡HIT!",500)}
+ });
 
-  db.rooms.useTopicEffect(room,"action",msg=>{
-    if(!msg||msg.clientId===CLIENT_ID||MODE!=="screen")return;
-    if(msg.type==="controllerReady"){
-      setScreenCalStep(0);
-      setToast("CALIBRACIÓN");
-      setTimeout(()=>setToast(""),800);
-    }
-    if(msg.type==="calibration") setScreenCalStep(clamp(Number(msg.step)||0,0,3));
-    if(msg.type==="calibrated"){
-      setScreenCalStep(4);
-      setToast("LISTO");
-      setTimeout(()=>setToast(""),900);
-    }
-    if(msg.type==="pull"){
-      gameRef.current?.pull();
-      setToast("PULL!");
-      setTimeout(()=>setToast(""),420);
-    }
-    if(msg.type==="shoot"){
-      const x=clamp(Number(msg.x),0,1), y=clamp(Number(msg.y),0,1);
-      latestAimRef.current={x,y};
-      setAimUI({x,y});
-      const hit=gameRef.current?.shoot(x,y)===true;
-      setScore(s=>({shots:s.shots+1,hits:s.hits+(hit?1:0)}));
-      setFlash(true);setTimeout(()=>setFlash(false),70);
-      if(hit){setToast("¡HIT!");setTimeout(()=>setToast(""),500);}
-    }
-  });
+ useEffect(()=>{if(MODE!=="screen"||!stageRef.current)return;const g=createGame(stageRef.current);gameRef.current=g;const key=e=>{if(e.code==="Space"||e.key.toLowerCase()==="p")g.pull();if(e.key.toLowerCase()==="f"){const a=latestAim.current,hit=g.shoot(a.x,a.y);setScore(s=>({shots:s.shots+1,hits:s.hits+(hit?1:0)}))}};addEventListener("keydown",key);return()=>{removeEventListener("keydown",key);g.dispose()}},[]);
+ useEffect(()=>()=>{voiceWanted.current=false;recognition.current?.abort?.();if(orientationHandler.current)removeEventListener("deviceorientation",orientationHandler.current,true)},[]);
 
-  useEffect(()=>{
-    if(MODE!=="screen"||!stageRef.current)return;
-    const game=createGame(stageRef.current);
-    gameRef.current=game;
-    game.setAim(.5,.5);
-    const key=e=>{
-      if(e.code==="Space"||e.key.toLowerCase()==="p")game.pull();
-      if(e.key.toLowerCase()==="f"){
-        const a=latestAimRef.current;
-        const hit=game.shoot(a.x,a.y);
-        setScore(s=>({shots:s.shots+1,hits:s.hits+(hit?1:0)}));
-      }
-    };
-    window.addEventListener("keydown",key);
-    return()=>{window.removeEventListener("keydown",key);game.dispose();gameRef.current=null;};
-  },[]);
+ async function activate(){try{setError("");if(!isSecureContext)throw Error("Necesita HTTPS. Abrilo desde GitHub Pages.");if(!window.DeviceOrientationEvent)throw Error("Este navegador no expone DeviceOrientation.");if(typeof DeviceOrientationEvent.requestPermission==="function"&&await DeviceOrientationEvent.requestPermission()!=="granted")throw Error("Permiso de orientación denegado.");sensor.current={ready:false,last:null,a:0,b:0,g:0};samples.current=[];cal.current=null;filtered.current={x:.5,y:.5};setCalStep(0);setControllerMode("calibrate");setSensorLabel("esperando orientación...");orientationHandler.current=onOrientation;addEventListener("deviceorientation",orientationHandler.current,true);publishAction({type:"controllerReady",clientId:CLIENT_ID,sentAt:Date.now()});startVoice()}catch(e){setError(e?.message||String(e))}}
 
-  async function activateSensors(){
-    try{
-      setError("");
-      if(!window.isSecureContext)throw new Error("Necesita HTTPS. Abrilo desde GitHub Pages.");
-      if(!window.DeviceOrientationEvent)throw new Error("Este navegador no expone DeviceOrientation.");
-      if(typeof DeviceOrientationEvent.requestPermission==="function"){
-        const p=await DeviceOrientationEvent.requestPermission();
-        if(p!=="granted")throw new Error("Permiso de orientación denegado.");
-      }
-      window.removeEventListener("deviceorientation",onOrientation,true);
-      window.addEventListener("deviceorientation",onOrientation,true);
-      sensorRef.current={ready:false,lastRaw:null,a:0,b:0,g:0};
-      calSamples.current=[];
-      calModel.current=null;
-      filteredAim.current={x:.5,y:.5};
-      setCalStep(0);
-      setControllerState("calibrate");
-      setSensorLabel("esperando orientación...");
-      publishAction({type:"controllerReady",clientId:CLIENT_ID,sentAt:Date.now()});
-      startVoice();
-    }catch(e){setError(e?.message||String(e));}
-  }
+ function onOrientation(e){const raw={a:num(e.alpha),b:num(e.beta),g:num(e.gamma)},s=sensor.current;if(!s.last){s.a=raw.a;s.b=raw.b;s.g=raw.g;s.last=raw;s.ready=true}else{s.a+=delta(raw.a,s.last.a);s.b+=delta(raw.b,s.last.b);s.g+=delta(raw.g,s.last.g);s.last=raw;s.ready=true}setSensorLabel(`α ${s.a.toFixed(0)}° · β ${s.b.toFixed(0)}° · γ ${s.g.toFixed(0)}°`);if(controllerStateRef.current!=="play"||!cal.current)return;const p=applyCal(cal.current,s);if(!p||!isFinite(p.x)||!isFinite(p.y))return;const t={x:clamp(p.x,0,1),y:clamp(p.y,0,1)},q=filtered.current,n={x:q.x+(t.x-q.x)*.42,y:q.y+(t.y-q.y)*.42};filtered.current=n;latestAim.current=n;const now=performance.now();if(now-lastSend.current>22){lastSend.current=now;publishAim({type:"aim",x:n.x,y:n.y,clientId:CLIENT_ID,sentAt:Date.now()})}}
 
-  function onOrientation(e){
-    const raw={
-      a:Number.isFinite(Number(e.alpha))?Number(e.alpha):0,
-      b:Number.isFinite(Number(e.beta))?Number(e.beta):0,
-      g:Number.isFinite(Number(e.gamma))?Number(e.gamma):0
-    };
-    const s=sensorRef.current;
-    if(!s.lastRaw){
-      s.a=raw.a;s.b=raw.b;s.g=raw.g;s.lastRaw=raw;s.ready=true;
-    }else{
-      s.a+=shortestAngleDelta(raw.a,s.lastRaw.a);
-      s.b+=shortestAngleDelta(raw.b,s.lastRaw.b);
-      s.g+=shortestAngleDelta(raw.g,s.lastRaw.g);
-      s.lastRaw=raw;s.ready=true;
-    }
-    setSensorLabel(`α ${s.a.toFixed(0)}° · β ${s.b.toFixed(0)}° · γ ${s.g.toFixed(0)}°`);
-    if(controllerState!=="play"||!calModel.current)return;
-    const p=applyCalibration(calModel.current,s);
-    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;
-    const target={x:clamp(p.x,0,1),y:clamp(p.y,0,1)};
-    const prev=filteredAim.current;
-    const next={x:prev.x+(target.x-prev.x)*.42,y:prev.y+(target.y-prev.y)*.42};
-    filteredAim.current=next;
-    latestAimRef.current=next;
-    const now=performance.now();
-    if(now-lastAimSend.current>=22){
-      lastAimSend.current=now;
-      publishAim({type:"aim",x:next.x,y:next.y,clientId:CLIENT_ID,sentAt:Date.now()});
-    }
-  }
+ function trigger(){if(!sensor.current.ready)return;if(controllerStateRef.current==="calibrate"){const s=sensor.current;samples.current.push({a:s.a,b:s.b,g:s.g});const n=samples.current.length;navigator.vibrate?.(25);if(n<4){setCalStep(n);publishAction({type:"calibration",step:n,clientId:CLIENT_ID,sentAt:Date.now()})}else{const m=buildCal(samples.current);if(!m){samples.current=[];setCalStep(0);setError("La calibración quedó degenerada. Repetí las cuatro esquinas separando bien cada apuntado.");publishAction({type:"calibration",step:0,clientId:CLIENT_ID,sentAt:Date.now()});return}cal.current=m;setControllerMode("play");setError("");publishAction({type:"calibrated",axes:m.axes,clientId:CLIENT_ID,sentAt:Date.now()});navigator.vibrate?.([35,35,35])}return}if(controllerStateRef.current==="play")shoot()}
+ function shoot(){const a=latestAim.current;navigator.vibrate?.(35);publishAction({type:"shoot",x:a.x,y:a.y,clientId:CLIENT_ID,sentAt:Date.now()})}
+ function sendPull(source="voice"){const now=Date.now();if(controllerStateRef.current!=="play"||now-pullCooldown.current<700)return;pullCooldown.current=now;navigator.vibrate?.(18);publishAction({type:"pull",source,clientId:CLIENT_ID,sentAt:now})}
+ function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){setVoiceLabel("PULL por voz no disponible · el gatillo sí funciona");return}try{voiceWanted.current=true;const r=new SR();recognition.current=r;r.lang="en-US";r.continuous=true;r.interimResults=true;r.maxAlternatives=3;r.onstart=()=>setVoiceLabel("🎙 escuchando “PULL!”");r.onerror=e=>setVoiceLabel(`micrófono: ${e.error||"error"}`);r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)for(let j=0;j<e.results[i].length;j++)if(/\b(pull|pool|pul|poul)\b/.test((e.results[i][j].transcript||"").toLowerCase())){sendPull("voice");return}};r.onend=()=>{if(voiceWanted.current)setTimeout(()=>{try{r.start()}catch{}},300)};r.start()}catch{setVoiceLabel("No pude iniciar reconocimiento de voz")}}
 
-  function trigger(){
-    if(!sensorRef.current.ready)return;
-    if(controllerState==="calibrate"){
-      const s=sensorRef.current;
-      calSamples.current.push({a:s.a,b:s.b,g:s.g});
-      const next=calSamples.current.length;
-      navigator.vibrate?.(25);
-      if(next<4){
-        setCalStep(next);
-        publishAction({type:"calibration",step:next,clientId:CLIENT_ID,sentAt:Date.now()});
-      }else{
-        const model=buildCalibration(calSamples.current);
-        if(!model){
-          calSamples.current=[];setCalStep(0);
-          setError("La calibración quedó degenerada. Repetí las cuatro esquinas separando bien cada apuntado.");
-          publishAction({type:"calibration",step:0,clientId:CLIENT_ID,sentAt:Date.now()});
-          return;
-        }
-        calModel.current=model;
-        setControllerState("play");
-        setError("");
-        publishAction({type:"calibrated",axes:model.axes,clientId:CLIENT_ID,sentAt:Date.now()});
-        navigator.vibrate?.([35,35,35]);
-      }
-      return;
-    }
-    if(controllerState==="play")shoot();
-  }
-
-  function shoot(){
-    const a=latestAimRef.current;
-    navigator.vibrate?.(35);
-    publishAction({type:"shoot",x:a.x,y:a.y,clientId:CLIENT_ID,sentAt:Date.now()});
-  }
-
-  function sendPull(source="voice"){
-    const now=Date.now();
-    if(controllerState!=="play"||now-pullCooldownRef.current<700)return;
-    pullCooldownRef.current=now;
-    navigator.vibrate?.(18);
-    publishAction({type:"pull",source,clientId:CLIENT_ID,sentAt:now});
-  }
-
-  function startVoice(){
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){setVoiceLabel("PULL por voz no disponible · el gatillo sí funciona");return;}
-    try{
-      voiceWantedRef.current=true;
-      recognitionRef.current?.abort?.();
-      const rec=new SR();
-      recognitionRef.current=rec;
-      rec.lang="en-US";rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=3;
-      rec.onstart=()=>setVoiceLabel("🎙 escuchando “PULL!”");
-      rec.onerror=e=>setVoiceLabel(`micrófono: ${e.error||"error"}`);
-      rec.onresult=e=>{
-        for(let i=e.resultIndex;i<e.results.length;i++){
-          for(let j=0;j<e.results[i].length;j++){
-            const t=(e.results[i][j].transcript||"").toLowerCase().trim();
-            if(/\b(pull|pool|pul|poul)\b/.test(t)){sendPull("voice");return;}
-          }
-        }
-      };
-      rec.onend=()=>{
-        if(voiceWantedRef.current)setTimeout(()=>{try{rec.start();}catch{}},300);
-      };
-      rec.start();
-    }catch(e){setVoiceLabel("No pude iniciar reconocimiento de voz");}
-  }
-
-  useEffect(()=>()=>{
-    voiceWantedRef.current=false;
-    recognitionRef.current?.abort?.();
-    window.removeEventListener("deviceorientation",onOrientation,true);
-  },[]);
-
-  if(MODE==="controller"){
-    if(controllerState==="activate")return React.createElement("div",{className:"controller"},
-      React.createElement("div",{className:"activate-wrap"},React.createElement("div",{className:"activate-card"},
-        React.createElement("h1",null,"SKEET REMOTE"),
-        React.createElement("p",null,"Pegá el teléfono al caño, orientalo como una escopeta y activá los sensores. Después calibramos las cuatro esquinas de la pantalla."),
-        React.createElement("button",{className:"activate",onClick:activateSensors},"ACTIVAR SENSORES + MIC"),
-        error?React.createElement("div",{className:"error"},error):null
-      ))
-    );
-    const isCal=controllerState==="calibrate";
-    const corner=CAL_CORNERS[calStep]||CAL_CORNERS[0];
-    return React.createElement("div",{className:"controller"},
-      React.createElement("button",{className:"trigger",onPointerDown:e=>{e.preventDefault();trigger();},"aria-label":isCal?"Calibrar":"Disparar"}),
-      React.createElement("div",{className:"controller-overlay"},
-        React.createElement("div",{className:"sensor"},React.createElement("span",null,isCal?`CAL ${calStep+1}/4`:"CAL OK"),React.createElement("span",null,sensorLabel)),
-        React.createElement("div",{className:"big"},isCal?`${calStep+1} / 4`:"GATILLO"),
-        React.createElement("div",{className:"small"},isCal?`Apuntá al blanco ${corner.name} de la PC y tocá cualquier parte de esta pantalla.`:"Toda la pantalla es el gatillo. Decí “PULL!” para lanzar un disco."),
-        error?React.createElement("div",{className:"error"},error):null,
-        React.createElement("div",{className:"voice"+(voiceLabel.includes("no disponible")||voiceLabel.includes("error")?" off":"")},voiceLabel)
-      )
-    );
-  }
-
-  const calibrated=screenCalStep>=4;
-  return React.createElement("div",{className:"screen"},
-    React.createElement("div",{className:"stage",ref:stageRef}),
-    React.createElement("div",{className:"hud"},
-      React.createElement("div",{className:"topbar"},
-        React.createElement("div",null,React.createElement("div",{className:"brand"},"SKEET RANGE"),React.createElement("div",{className:"sub"},`Room: ${ROOM_ID}`)),
-        React.createElement("div",{className:"stats"},`${score.hits} / ${score.shots}`,React.createElement("div",{className:"sub"},"ACIERTOS / TIROS"))
-      ),
-      !calibrated?React.createElement("div",{className:"center-message"},`Calibración: apuntá al blanco ${CAL_CORNERS[screenCalStep]?.name||"SUPERIOR IZQUIERDA"} y tocá el celular.`):React.createElement("div",{className:"center-message"},"Decí PULL! · apuntá · dispará"),
-      CAL_CORNERS.map((c,i)=>React.createElement("div",{key:i,className:"cal-target "+(calibrated?"done":i===screenCalStep?"active":i<screenCalStep?"done":""),style:{left:`${c.x*100}%`,top:`${c.y*100}%`}})),
-      React.createElement("div",{className:"crosshair",style:{left:`${aimUI.x*100}%`,top:`${aimUI.y*100}%`,opacity:calibrated?1:0}},React.createElement("i",null)),
-      React.createElement("div",{className:"toast "+(toast?"show":"")},toast),
-      React.createElement("div",{className:"flash "+(flash?"on":"")})
-    )
-  );
+ if(MODE==="controller"){
+  if(controllerState==="activate")return React.createElement("div",{className:"controller"},React.createElement("div",{className:"activate-wrap"},React.createElement("div",{className:"activate-card"},React.createElement("h1",null,"SKEET REMOTE"),React.createElement("p",null,"Pegá el teléfono al caño, orientalo como una escopeta y activá los sensores. Después calibramos las cuatro esquinas de la pantalla."),React.createElement("button",{className:"activate",onClick:activate},"ACTIVAR SENSORES + MIC"),error&&React.createElement("div",{className:"error"},error))));
+  const isCal=controllerState==="calibrate",corner=C[calStep]||C[0];return React.createElement("div",{className:"controller"},React.createElement("button",{className:"trigger",onPointerDown:e=>{e.preventDefault();trigger()}}),React.createElement("div",{className:"controller-overlay"},React.createElement("div",{className:"sensor"},React.createElement("span",null,isCal?`CAL ${calStep+1}/4`:"CAL OK"),React.createElement("span",null,sensorLabel)),React.createElement("div",{className:"big"},isCal?`${calStep+1} / 4`:"GATILLO"),React.createElement("div",{className:"small"},isCal?`Apuntá al blanco ${corner.name} de la PC y tocá cualquier parte de esta pantalla.`:"Toda la pantalla es el gatillo. Decí “PULL!” para lanzar un disco."),error&&React.createElement("div",{className:"error"},error),React.createElement("div",{className:"voice"+(voiceLabel.includes("no disponible")||voiceLabel.includes("error")?" off":"")},voiceLabel)));
+ }
+ const ready=screenStep>=4;return React.createElement("div",{className:"screen"},React.createElement("div",{className:"stage",ref:stageRef}),React.createElement("div",{className:"hud"},React.createElement("div",{className:"topbar"},React.createElement("div",null,React.createElement("div",{className:"brand"},"SKEET RANGE"),React.createElement("div",{className:"sub"},`Room: ${ROOM_ID}`)),React.createElement("div",{className:"stats"},`${score.hits} / ${score.shots}`,React.createElement("div",{className:"sub"},"ACIERTOS / TIROS"))),React.createElement("div",{className:"center-message"},ready?"Decí PULL! · apuntá · dispará":`Calibración: apuntá al blanco ${C[screenStep]?.name||C[0].name} y tocá el celular.`),C.map((c,i)=>React.createElement("div",{key:i,className:"cal-target "+(ready?"done":i===screenStep?"active":i<screenStep?"done":""),style:{left:`${c.x*100}%`,top:`${c.y*100}%`}})),React.createElement("div",{className:"crosshair",style:{left:`${aim.x*100}%`,top:`${aim.y*100}%`,opacity:ready?1:0}},React.createElement("i")),React.createElement("div",{className:"toast "+(toast?"show":"")},toast),React.createElement("div",{className:"flash "+(flash?"on":"")})));
 }
 
-function buildCalibration(samples){
-  if(samples.length!==4)return null;
-  const pairs=[["a","b"],["a","g"],["b","g"]];
-  let best=null;
-  for(const axes of pairs){
-    const pts=samples.map(s=>({x:s[axes[0]],y:s[axes[1]]}));
-    const area=Math.abs(polyArea(pts));
-    if(!best||area>best.area)best={axes,pts,area};
-  }
-  if(!best||best.area<8)return null;
-  const dst=CAL_CORNERS.map(c=>({x:c.x,y:c.y}));
-  const H=solveHomography(best.pts,dst);
-  return H?{axes:best.axes,H}:null;
-}
-function applyCalibration(model,s){
-  const x=s[model.axes[0]],y=s[model.axes[1]],h=model.H;
-  const d=h[6]*x+h[7]*y+1;
-  if(Math.abs(d)<1e-8)return null;
-  return{x:(h[0]*x+h[1]*y+h[2])/d,y:(h[3]*x+h[4]*y+h[5])/d};
-}
-function solveHomography(src,dst){
-  const A=[],b=[];
-  for(let i=0;i<4;i++){
-    const x=src[i].x,y=src[i].y,X=dst[i].x,Y=dst[i].y;
-    A.push([x,y,1,0,0,0,-X*x,-X*y]);b.push(X);
-    A.push([0,0,0,x,y,1,-Y*x,-Y*y]);b.push(Y);
-  }
-  return gaussianSolve(A,b);
-}
-function gaussianSolve(A,b){
-  const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
-  for(let c=0;c<n;c++){
-    let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;
-    if(Math.abs(M[p][c])<1e-10)return null;
-    [M[c],M[p]]=[M[p],M[c]];
-    const q=M[c][c];for(let j=c;j<=n;j++)M[c][j]/=q;
-    for(let r=0;r<n;r++)if(r!==c){const f=M[r][c];for(let j=c;j<=n;j++)M[r][j]-=f*M[c][j];}
-  }
-  return M.map(r=>r[n]);
-}
-function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y;}return a/2;}
-function shortestAngleDelta(now,prev){let d=now-prev;while(d>180)d-=360;while(d<-180)d+=360;return d;}
+function buildCal(s){const pairs=[["a","b"],["a","g"],["b","g"]];let best=null;for(const axes of pairs){const pts=s.map(v=>({x:v[axes[0]],y:v[axes[1]]})),area=Math.abs(polyArea(pts));if(!best||area>best.area)best={axes,pts,area}}if(!best||best.area<8)return null;const H=homography(best.pts,C);return H?{axes:best.axes,H}:null}
+function applyCal(m,s){const x=s[m.axes[0]],y=s[m.axes[1]],h=m.H,d=h[6]*x+h[7]*y+1;if(Math.abs(d)<1e-8)return null;return{x:(h[0]*x+h[1]*y+h[2])/d,y:(h[3]*x+h[4]*y+h[5])/d}}
+function homography(src,dst){const A=[],b=[];for(let i=0;i<4;i++){const x=src[i].x,y=src[i].y,X=dst[i].x,Y=dst[i].y;A.push([x,y,1,0,0,0,-X*x,-X*y]);b.push(X);A.push([0,0,0,x,y,1,-Y*x,-Y*y]);b.push(Y)}return solve(A,b)}
+function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;if(Math.abs(M[p][c])<1e-10)return null;[M[c],M[p]]=[M[p],M[c]];const q=M[c][c];for(let j=c;j<=n;j++)M[c][j]/=q;for(let r=0;r<n;r++)if(r!==c){const f=M[r][c];for(let j=c;j<=n;j++)M[r][j]-=f*M[c][j]}}return M.map(r=>r[n])}
+function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y}return a/2}
+function delta(a,b){let d=a-b;while(d>180)d-=360;while(d<-180)d+=360;return d}function num(v){v=Number(v);return Number.isFinite(v)?v:0}function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
 
 function createGame(host){
-  const scene=new THREE.Scene();
-  const camera=new THREE.PerspectiveCamera(58,1,.03,180);
-  camera.position.set(0,1.6,0);
-  scene.add(camera);
-  const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.outputColorSpace=THREE.SRGBColorSpace;
-  renderer.shadowMap.enabled=true;
-  host.appendChild(renderer.domElement);
-
-  scene.add(new THREE.HemisphereLight(0xddeeff,0x68775b,2.3));
-  const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(-8,16,6);sun.castShadow=true;scene.add(sun);
-
-  const tex=new THREE.TextureLoader().load("range.jpg",t=>{t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;});
-  const dome=new THREE.Mesh(new THREE.SphereGeometry(75,72,40),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));
-  dome.rotation.y=Math.PI;scene.add(dome);
-
-  const ground=new THREE.Mesh(new THREE.CircleGeometry(55,64),new THREE.MeshStandardMaterial({color:0x526746,roughness:1,transparent:true,opacity:.18}));
-  ground.rotation.x=-Math.PI/2;ground.position.y=-1.55;ground.receiveShadow=true;scene.add(ground);
-
-  const launcher=new THREE.Group();
-  const base=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.4,2.6),new THREE.MeshStandardMaterial({color:0x4b5259,metalness:.65,roughness:.35}));
-  base.castShadow=true;launcher.add(base);
-  const chute=new THREE.Mesh(new THREE.BoxGeometry(1.1,.35,2.6),new THREE.MeshStandardMaterial({color:0x252a2e,metalness:.8,roughness:.28}));
-  chute.position.set(.65,.75,-.35);chute.rotation.z=-.18;launcher.add(chute);
-  launcher.position.set(-9.2,-.82,-22);launcher.rotation.y=-.08;scene.add(launcher);
-
-  const gunRig=new THREE.Group();gunRig.position.set(.52,-.48,-1.15);camera.add(gunRig);
-  const fallback=createFallbackGun();gunRig.add(fallback);
-  new FBXLoader().load("SHOTGUN.fbx",obj=>{
-    try{
-      gunRig.remove(fallback);
-      obj.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{m.metalness=Math.min(Number(m.metalness||0),.55);m.roughness=Math.max(Number(m.roughness||.45),.28);});}}});
-      const box=new THREE.Box3().setFromObject(obj),size=new THREE.Vector3(),center=new THREE.Vector3();box.getSize(size);box.getCenter(center);
-      obj.position.sub(center);
-      const longest=Math.max(size.x,size.y,size.z)||1;obj.scale.setScalar(1.35/longest);
-      if(size.x===longest)obj.rotation.y=Math.PI/2;else if(size.y===longest)obj.rotation.x=-Math.PI/2;
-      obj.position.z=-.15;
-      gunRig.add(obj);
-    }catch(e){console.warn("FBX setup",e);}
-  },undefined,e=>console.warn("No pude cargar SHOTGUN.fbx",e));
-
-  const clayGeo=new THREE.CylinderGeometry(.52,.52,.12,28);
-  const clayMat=new THREE.MeshStandardMaterial({color:0xff6b28,roughness:.6,metalness:0});
-  const fragGeo=new THREE.TetrahedronGeometry(.13,0);
-  const fragMat=new THREE.MeshStandardMaterial({color:0xff7c31,roughness:.72});
-  const targets=[],fragments=[];
-  const raycaster=new THREE.Raycaster();
-  const aim={x:.5,y:.5};
-  let recoil=0,last=performance.now(),disposed=false,activeTarget=null;
-  let audioCtx=null;
-  function ensureAudio(){try{audioCtx??=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==="suspended")audioCtx.resume();}catch{}}
-  window.addEventListener("pointerdown",ensureAudio,{once:true});
-
-  function setAim(x,y){aim.x=x;aim.y=y;}
-  function pull(){
-    if(activeTarget&&scene.getObjectById(activeTarget.mesh.id))return false;
-    ensureAudio();throwSound();
-    const mesh=new THREE.Mesh(clayGeo,clayMat);mesh.castShadow=true;
-    mesh.position.set(-8.25,.45,-21.5);
-    mesh.rotation.x=Math.PI/2;scene.add(mesh);
-    const t={mesh,vel:new THREE.Vector3(9.2+Math.random()*1.5,6.3+Math.random()*1.2,(Math.random()-.5)*1.4),age:0};
-    targets.push(t);activeTarget=t;return true;
-  }
-  function shoot(x=aim.x,y=aim.y){
-    ensureAudio();shotSound();recoil=.11;
-    camera.updateMatrixWorld(true);
-    raycaster.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera);
-    const meshes=targets.map(t=>t.mesh);
-    const hits=raycaster.intersectObjects(meshes,false);
-    if(!hits.length)return false;
-    const mesh=hits[0].object;
-    const idx=targets.findIndex(t=>t.mesh===mesh);
-    if(idx<0)return false;
-    const t=targets[idx];targets.splice(idx,1);if(activeTarget===t)activeTarget=null;
-    explode(t);scene.remove(mesh);hitSound();return true;
-  }
-  function explode(t){
-    for(let i=0;i<14;i++){
-      const m=new THREE.Mesh(fragGeo,fragMat);m.position.copy(t.mesh.position);m.scale.setScalar(.65+Math.random()*.9);scene.add(m);
-      fragments.push({mesh:m,vel:t.vel.clone().multiplyScalar(.35).add(new THREE.Vector3((Math.random()-.5)*5,(Math.random()-.2)*5,(Math.random()-.5)*4)),ttl:1.5+Math.random()*.7});
-    }
-  }
-  function createNoise(duration=.16,gain=.32){
-    if(!audioCtx)return;
-    const n=Math.floor(audioCtx.sampleRate*duration),buf=audioCtx.createBuffer(1,n,audioCtx.sampleRate),data=buf.getChannelData(0);
-    for(let i=0;i<n;i++)data[i]=(Math.random()*2-1)*(1-i/n);
-    const src=audioCtx.createBufferSource(),g=audioCtx.createGain();src.buffer=buf;g.gain.value=gain;src.connect(g);g.connect(audioCtx.destination);src.start();
-  }
-  function shotSound(){createNoise(.22,.5);}
-  function hitSound(){createNoise(.07,.12);}
-  function throwSound(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.setValueAtTime(230,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(120,audioCtx.currentTime+.12);g.gain.setValueAtTime(.06,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.13);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.14);}
-
-  function resize(){
-    const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);
-  }
-  const ro=new ResizeObserver(resize);ro.observe(host);resize();
-
-  function loop(now){
-    if(disposed)return;
-    const dt=Math.min((now-last)/1000,.04);last=now;
-    const yaw=(aim.x-.5)*.48,pitch=(aim.y-.5)*.34;
-    recoil+=(0-recoil)*Math.min(1,dt*15);
-    gunRig.rotation.y+=((-.04-yaw)-gunRig.rotation.y)*Math.min(1,dt*12);
-    gunRig.rotation.x+=((.03+pitch+recoil)-gunRig.rotation.x)*Math.min(1,dt*12);
-    for(let i=targets.length-1;i>=0;i--){
-      const t=targets[i];t.age+=dt;t.vel.y-=6.2*dt;t.mesh.position.addScaledVector(t.vel,dt);t.mesh.rotation.z+=dt*9;t.mesh.rotation.y+=dt*5;
-      if(t.age>4.2||t.mesh.position.y<-3||Math.abs(t.mesh.position.x)>30){scene.remove(t.mesh);targets.splice(i,1);if(activeTarget===t)activeTarget=null;}
-    }
-    for(let i=fragments.length-1;i>=0;i--){
-      const f=fragments[i];f.ttl-=dt;f.vel.y-=7.5*dt;f.mesh.position.addScaledVector(f.vel,dt);f.mesh.rotation.x+=dt*8;f.mesh.rotation.y+=dt*6;f.mesh.scale.multiplyScalar(.995);
-      if(f.ttl<=0){scene.remove(f.mesh);fragments.splice(i,1);}
-    }
-    renderer.render(scene,camera);requestAnimationFrame(loop);
-  }
-  requestAnimationFrame(loop);
-  return{setAim,pull,shoot,dispose(){disposed=true;ro.disconnect();renderer.dispose();tex.dispose();host.replaceChildren();}};
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(58,1,.03,180);camera.position.set(0,1.6,0);scene.add(camera);const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;host.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0xddeeff,0x68775b,2.3));const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(-8,16,6);scene.add(sun);
+ const tex=new THREE.TextureLoader().load("range.jpg",t=>{t.colorSpace=THREE.SRGBColorSpace});const dome=new THREE.Mesh(new THREE.SphereGeometry(75,72,40),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));dome.rotation.y=Math.PI;scene.add(dome);
+ const ground=new THREE.Mesh(new THREE.CircleGeometry(55,64),new THREE.MeshStandardMaterial({color:0x526746,transparent:true,opacity:.16,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-1.55;scene.add(ground);
+ const launcher=new THREE.Group(),base=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.4,2.6),new THREE.MeshStandardMaterial({color:0x4b5259,metalness:.65,roughness:.35})),chute=new THREE.Mesh(new THREE.BoxGeometry(1.1,.35,2.6),new THREE.MeshStandardMaterial({color:0x252a2e,metalness:.8,roughness:.28}));launcher.add(base);chute.position.set(.65,.75,-.35);chute.rotation.z=-.18;launcher.add(chute);launcher.position.set(-9.2,-.82,-22);scene.add(launcher);
+ const gunRig=new THREE.Group();gunRig.position.set(.52,-.48,-1.15);camera.add(gunRig);const fallback=fallbackGun();gunRig.add(fallback);new FBXLoader().load("SHOTGUN.fbx",obj=>{try{gunRig.remove(fallback);obj.traverse(o=>{if(o.isMesh)o.castShadow=true});const box=new THREE.Box3().setFromObject(obj),size=new THREE.Vector3(),center=new THREE.Vector3();box.getSize(size);box.getCenter(center);obj.position.sub(center);const longest=Math.max(size.x,size.y,size.z)||1;obj.scale.setScalar(1.35/longest);if(size.x===longest)obj.rotation.y=Math.PI/2;else if(size.y===longest)obj.rotation.x=-Math.PI/2;obj.position.z=-.15;gunRig.add(obj)}catch(e){console.warn(e)}},undefined,e=>console.warn("FBX",e));
+ const clayGeo=new THREE.CylinderGeometry(.52,.52,.12,28),clayMat=new THREE.MeshStandardMaterial({color:0xff6b28,roughness:.6}),fragGeo=new THREE.TetrahedronGeometry(.13),fragMat=new THREE.MeshStandardMaterial({color:0xff7c31,roughness:.72}),targets=[],frags=[],ray=new THREE.Raycaster(),aim={x:.5,y:.5};let active=null,recoil=0,last=performance.now(),dead=false,audio=null;
+ function ensureAudio(){try{audio??=new (AudioContext||webkitAudioContext)();audio.resume?.()}catch{}}addEventListener("pointerdown",ensureAudio,{once:true});
+ function pull(){if(active&&scene.getObjectById(active.mesh.id))return false;ensureAudio();tone();const mesh=new THREE.Mesh(clayGeo,clayMat);mesh.position.set(-8.25,.45,-21.5);mesh.rotation.x=Math.PI/2;scene.add(mesh);active={mesh,vel:new THREE.Vector3(9.2+Math.random()*1.5,6.3+Math.random()*1.2,(Math.random()-.5)*1.4),age:0};targets.push(active);return true}
+ function shoot(x=aim.x,y=aim.y){ensureAudio();noise(.22,.5);recoil=.11;camera.updateMatrixWorld(true);ray.setFromCamera(new THREE.Vector2(x*2-1,1-y*2),camera);const hit=ray.intersectObjects(targets.map(t=>t.mesh),false)[0];if(!hit)return false;const i=targets.findIndex(t=>t.mesh===hit.object);if(i<0)return false;const t=targets[i];targets.splice(i,1);if(active===t)active=null;for(let k=0;k<14;k++){const m=new THREE.Mesh(fragGeo,fragMat);m.position.copy(t.mesh.position);scene.add(m);frags.push({mesh:m,vel:t.vel.clone().multiplyScalar(.35).add(new THREE.Vector3((Math.random()-.5)*5,(Math.random()-.2)*5,(Math.random()-.5)*4)),ttl:1.5+Math.random()*.7})}scene.remove(t.mesh);noise(.07,.12);return true}
+ function noise(d=.15,gain=.25){if(!audio)return;const n=Math.floor(audio.sampleRate*d),buf=audio.createBuffer(1,n,audio.sampleRate),data=buf.getChannelData(0);for(let i=0;i<n;i++)data[i]=(Math.random()*2-1)*(1-i/n);const s=audio.createBufferSource(),g=audio.createGain();s.buffer=buf;g.gain.value=gain;s.connect(g);g.connect(audio.destination);s.start()}
+ function tone(){if(!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.frequency.setValueAtTime(230,audio.currentTime);o.frequency.exponentialRampToValueAtTime(120,audio.currentTime+.12);g.gain.setValueAtTime(.06,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.13);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+.14)}
+ function resize(){const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)}const ro=new ResizeObserver(resize);ro.observe(host);resize();
+ function loop(now){if(dead)return;const dt=Math.min((now-last)/1000,.04);last=now;const yaw=(aim.x-.5)*.48,pitch=(aim.y-.5)*.34;recoil+=(0-recoil)*Math.min(1,dt*15);gunRig.rotation.y+=((-.04-yaw)-gunRig.rotation.y)*Math.min(1,dt*12);gunRig.rotation.x+=((.03+pitch+recoil)-gunRig.rotation.x)*Math.min(1,dt*12);for(let i=targets.length-1;i>=0;i--){const t=targets[i];t.age+=dt;t.vel.y-=6.2*dt;t.mesh.position.addScaledVector(t.vel,dt);t.mesh.rotation.z+=dt*9;t.mesh.rotation.y+=dt*5;if(t.age>4.2||t.mesh.position.y<-3||Math.abs(t.mesh.position.x)>30){scene.remove(t.mesh);targets.splice(i,1);if(active===t)active=null}}for(let i=frags.length-1;i>=0;i--){const f=frags[i];f.ttl-=dt;f.vel.y-=7.5*dt;f.mesh.position.addScaledVector(f.vel,dt);f.mesh.rotation.x+=dt*8;f.mesh.rotation.y+=dt*6;if(f.ttl<=0){scene.remove(f.mesh);frags.splice(i,1)}}renderer.render(scene,camera);requestAnimationFrame(loop)}requestAnimationFrame(loop);
+ return{setAim(x,y){aim.x=x;aim.y=y},pull,shoot,dispose(){dead=true;ro.disconnect();renderer.dispose();tex.dispose();host.replaceChildren()}};
 }
-function createFallbackGun(){
-  const g=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x24292e,metalness:.8,roughness:.25}),wood=new THREE.MeshStandardMaterial({color:0x593821,roughness:.72});
-  const barrel=new THREE.Mesh(new THREE.BoxGeometry(.06,.07,1.2),metal);barrel.position.z=-.5;g.add(barrel);
-  const stock=new THREE.Mesh(new THREE.BoxGeometry(.18,.16,.52),wood);stock.position.set(0,-.04,.34);stock.rotation.x=.12;g.add(stock);return g;
-}
-function detectMode(){
-  const p=new URLSearchParams(location.search),forced=p.get("mode");
-  if(forced==="screen"||forced==="controller")return forced;
-  const ua=navigator.userAgent||"",mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua),coarse=window.matchMedia?.("(pointer: coarse)")?.matches,small=Math.min(innerWidth,innerHeight)<800;
-  return(mobile||(coarse&&small))?"controller":"screen";
-}
-function clamp(n,min,max){return Math.max(min,Math.min(max,n));}
+function fallbackGun(){const g=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x24292e,metalness:.8,roughness:.25}),wood=new THREE.MeshStandardMaterial({color:0x593821,roughness:.72}),b=new THREE.Mesh(new THREE.BoxGeometry(.06,.07,1.2),metal),s=new THREE.Mesh(new THREE.BoxGeometry(.18,.16,.52),wood);b.position.z=-.5;s.position.set(0,-.04,.34);s.rotation.x=.12;g.add(b,s);return g}
+function detectMode(){const p=new URLSearchParams(location.search),f=p.get("mode");if(f==="screen"||f==="controller")return f;const ua=navigator.userAgent||"",mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua),coarse=matchMedia?.("(pointer: coarse)")?.matches,small=Math.min(innerWidth,innerHeight)<800;return mobile||(coarse&&small)?"controller":"screen"}
 createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 </body>
