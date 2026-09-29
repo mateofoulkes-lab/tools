@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Excuse Me</string>
+    <string name="app_description">Armala antes de una situación incómoda. Golpeá el celular la cantidad configurada de veces y, después de la demora, Android recibe una llamada entrante simulada.</string>
+    <string name="caller_name">Nombre de quien llama</string>
+    <string name="caller_number">Número de quien llama</string>
+    <string name="pick_contact">Elegir un contacto existente</string>
+    <string name="contact_photo_explanation">Para que la app Teléfono real muestre exactamente la foto del contacto, elegí un contacto existente. Con un nombre inventado, Android usará el avatar normal para llamadas desconocidas.</string>
+    <string name="contact_selected_hint">Contacto elegido. Android podrá resolver su nombre y foto reales.</string>
+    <string name="knock_count_value">Golpes: %1$d</string>
+    <string name="delay_value">Demora desde el último golpe: %1$d s</string>
+    <string name="sensitivity">Sensibilidad de los golpes</string>
+    <string-array name="sensitivity_options">
+        <item>Alta</item>
+        <item>Media</item>
+        <item>Baja</item>
+    </string-array>
+    <string name="configure_phone_account">Configurar integración de llamadas</string>
+    <string name="phone_account_ready">✓ Integración con Teléfono lista</string>
+    <string name="phone_account_not_ready">⚠ Habilitá “Excuse Me” en Cuentas de llamadas</string>
+    <string name="system_ui_explanation">Esto hace que la llamada use la pantalla entrante real de tu teléfono, el idioma actual del sistema, tu ringtone y el comportamiento real de la pantalla bloqueada.</string>
+    <string name="arm">ARMAR</string>
+    <string name="disarm">DESARMAR</string>
+    <string name="test_call">Probar llamada ahora</string>
+    <string name="armed_status">● ARMADA — escuchando golpes</string>
+    <string name="disarmed_status">○ Desarmada</string>
+    <string name="enable_phone_account_first">Primero habilitá “Excuse Me” como cuenta de llamadas.</string>
+    <string name="armed_channel_name">Detección de golpes</string>
+    <string name="armed_channel_description">Solo aparece mientras Excuse Me está armada y escuchando el gesto de golpes.</string>
+    <string name="armed_notification_title">Excuse Me está armada</string>
+    <string name="armed_notification_text">Escuchando %1$d golpes · llamada en %2$d s</string>
+    <string name="call_log_warning">Nota: como este modo usa deliberadamente la interfaz real Android Telecom/Teléfono, algunos fabricantes pueden dejar la llamada simulada en Recientes.</string>
+</resources>

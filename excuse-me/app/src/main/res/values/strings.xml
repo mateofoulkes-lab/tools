@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Excuse Me</string>
+    <string name="app_description">Arm it before an awkward situation. Knock the phone the configured number of times; after the delay, Android receives a simulated incoming call.</string>
+    <string name="caller_name">Caller name</string>
+    <string name="caller_number">Caller number</string>
+    <string name="pick_contact">Choose an existing contact</string>
+    <string name="contact_photo_explanation">For the exact contact photo in the real Phone app, choose an existing contact. For a made-up caller, Android will use the Phone app’s normal unknown-caller avatar.</string>
+    <string name="contact_selected_hint">Contact selected. Android can now resolve its real name and photo.</string>
+    <string name="knock_count_value">Knocks: %1$d</string>
+    <string name="delay_value">Delay after last knock: %1$d s</string>
+    <string name="sensitivity">Knock sensitivity</string>
+    <string-array name="sensitivity_options">
+        <item>High</item>
+        <item>Medium</item>
+        <item>Low</item>
+    </string-array>
+    <string name="configure_phone_account">Configure system call integration</string>
+    <string name="phone_account_ready">✓ System Phone integration ready</string>
+    <string name="phone_account_not_ready">⚠ Enable “Excuse Me” under calling accounts</string>
+    <string name="system_ui_explanation">This is what makes the call use your phone’s real incoming-call screen, current system language, ringtone and lock-screen behavior.</string>
+    <string name="arm">ARM</string>
+    <string name="disarm">DISARM</string>
+    <string name="test_call">Test call now</string>
+    <string name="armed_status">● ARMED — listening for knocks</string>
+    <string name="disarmed_status">○ Disarmed</string>
+    <string name="enable_phone_account_first">Enable “Excuse Me” as a calling account first.</string>
+    <string name="armed_channel_name">Knock detection</string>
+    <string name="armed_channel_description">Shown only while Excuse Me is armed and listening for the knock gesture.</string>
+    <string name="armed_notification_title">Excuse Me is armed</string>
+    <string name="armed_notification_text">Listening for %1$d knocks · call after %2$d s</string>
+    <string name="call_log_warning">Note: because this mode deliberately uses Android’s real Phone/Telecom interface, some phone apps may leave the simulated call in Recents.</string>
+</resources>
