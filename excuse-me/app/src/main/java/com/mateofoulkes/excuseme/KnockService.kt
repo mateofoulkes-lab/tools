@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
@@ -40,6 +39,7 @@ class KnockService : Service(), SensorEventListener {
     private var hits = 0
     private var lastImpactAt = 0L
     private var triggerScheduled = false
+    private var listening = false
 
     override fun onCreate() {
         super.onCreate()
@@ -57,14 +57,14 @@ class KnockService : Service(), SensorEventListener {
     }
 
     private fun startListening() {
-        val prefs = Prefs(this)
-        if (prefs.armed && !triggerScheduled) {
-            // A duplicate start request should just refresh the foreground notification.
+        if (listening) {
             showForegroundNotification()
             return
         }
 
+        val prefs = Prefs(this)
         prefs.armed = true
+        listening = true
         hits = 0
         lastImpactAt = 0L
         triggerScheduled = false
@@ -184,6 +184,7 @@ class KnockService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        listening = false
         Prefs(this).armed = false
         triggerScheduled = false
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -194,6 +195,7 @@ class KnockService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        listening = false
         Prefs(this).armed = false
         super.onDestroy()
     }
