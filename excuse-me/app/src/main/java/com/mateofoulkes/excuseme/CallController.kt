@@ -17,30 +17,52 @@ object CallController {
         ACCOUNT_ID
     )
 
-    fun registerPhoneAccount(context: Context) {
-        val telecom = context.getSystemService(TelecomManager::class.java)
-        val account = PhoneAccount.Builder(phoneAccountHandle(context), "Excuse Me")
-            .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER)
-            .setShortDescription("Excuse Me")
-            .setSupportedUriSchemes(listOf(PhoneAccount.SCHEME_TEL))
-            .build()
-        telecom.registerPhoneAccount(account)
+    fun registerPhoneAccount(context: Context): Boolean {
+        return try {
+            val telecom = context.getSystemService(TelecomManager::class.java)
+            val account = PhoneAccount.Builder(phoneAccountHandle(context), "Excuse Me")
+                .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER)
+                .setShortDescription("Excuse Me")
+                .setSupportedUriSchemes(listOf(PhoneAccount.SCHEME_TEL))
+                .build()
+            telecom.registerPhoneAccount(account)
+            true
+        } catch (_: SecurityException) {
+            false
+        } catch (_: IllegalArgumentException) {
+            false
+        }
     }
 
-    fun isPhoneAccountEnabled(context: Context): Boolean {
-        val telecom = context.getSystemService(TelecomManager::class.java)
-        return telecom.getPhoneAccount(phoneAccountHandle(context))?.isEnabled == true
+    /**
+     * Returns true/false when Android lets us inspect our PhoneAccount.
+     * On Android 12+ getPhoneAccount() can require READ_PHONE_NUMBERS even for
+     * the app's own account. Excuse Me intentionally does not request that
+     * privacy-sensitive permission just to paint a status label, so null means
+     * "Android did not allow inspection" rather than "disabled".
+     */
+    fun isPhoneAccountEnabled(context: Context): Boolean? {
+        return try {
+            val telecom = context.getSystemService(TelecomManager::class.java)
+            telecom.getPhoneAccount(phoneAccountHandle(context))?.isEnabled == true
+        } catch (_: SecurityException) {
+            null
+        }
     }
 
-    fun openPhoneAccountSettings(context: Context) {
-        val intent = Intent(TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+    fun openPhoneAccountSettings(context: Context): Boolean {
+        return try {
+            val intent = Intent(TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun triggerIncomingCall(context: Context): Boolean {
-        registerPhoneAccount(context)
-        if (!isPhoneAccountEnabled(context)) return false
+        if (!registerPhoneAccount(context)) return false
 
         val prefs = Prefs(context)
         val telecom = context.getSystemService(TelecomManager::class.java)
@@ -50,9 +72,14 @@ object CallController {
         }
 
         return try {
+            // This call itself is the authoritative check: if the account is not
+            // enabled, Telecom rejects it with SecurityException. No READ_PHONE_NUMBERS
+            // permission is needed merely to launch Excuse Me.
             telecom.addNewIncomingCall(phoneAccountHandle(context), extras)
             true
         } catch (_: SecurityException) {
+            false
+        } catch (_: IllegalArgumentException) {
             false
         }
     }
