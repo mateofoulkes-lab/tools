@@ -113,7 +113,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.phoneAccountButton).setOnClickListener {
             saveForm()
             CallController.registerPhoneAccount(this)
-            CallController.openPhoneAccountSettings(this)
+            if (!CallController.openPhoneAccountSettings(this)) {
+                Toast.makeText(this, R.string.phone_account_settings_unavailable, Toast.LENGTH_LONG).show()
+            }
         }
 
         armButton.setOnClickListener {
@@ -138,8 +140,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun arm() {
         saveForm()
-        CallController.registerPhoneAccount(this)
-        if (!CallController.isPhoneAccountEnabled(this)) {
+        if (!CallController.registerPhoneAccount(this)) {
+            Toast.makeText(this, R.string.phone_account_registration_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // On Android 12+ checking PhoneAccount.isEnabled can require the private
+        // READ_PHONE_NUMBERS permission. We do not ask for that just to arm the app.
+        // If Android lets us inspect and explicitly says disabled, guide the user to Settings.
+        if (CallController.isPhoneAccountEnabled(this) == false) {
             Toast.makeText(this, R.string.enable_phone_account_first, Toast.LENGTH_LONG).show()
             CallController.openPhoneAccountSettings(this)
             return
@@ -166,11 +175,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val enabled = CallController.isPhoneAccountEnabled(this)
-        phoneAccountStatus.text = if (enabled) {
-            getString(R.string.phone_account_ready)
-        } else {
-            getString(R.string.phone_account_not_ready)
+        phoneAccountStatus.text = when (CallController.isPhoneAccountEnabled(this)) {
+            true -> getString(R.string.phone_account_ready)
+            false -> getString(R.string.phone_account_not_ready)
+            null -> getString(R.string.phone_account_status_private)
         }
 
         armedStatus.text = if (prefs.armed) {
