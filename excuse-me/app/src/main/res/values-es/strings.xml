@@ -17,6 +17,9 @@
     <string name="configure_phone_account">Configurar integración de llamadas</string>
     <string name="phone_account_ready">✓ Integración con Teléfono lista</string>
     <string name="phone_account_not_ready">⚠ Habilitá “Excuse Me” en Cuentas de llamadas</string>
+    <string name="phone_account_status_private">ℹ Android oculta este estado sin permiso de Teléfono. Usá “Probar llamada ahora” para verificarlo.</string>
+    <string name="phone_account_settings_unavailable">Android no pudo abrir la configuración de cuentas de llamadas en este dispositivo.</string>
+    <string name="phone_account_registration_failed">Android rechazó el registro de la cuenta de llamadas en este dispositivo.</string>
     <string name="system_ui_explanation">Esto hace que la llamada use la pantalla entrante real de tu teléfono, el idioma actual del sistema, tu ringtone y el comportamiento real de la pantalla bloqueada.</string>
     <string name="arm">ARMAR</string>
     <string name="disarm">DESARMAR</string>
