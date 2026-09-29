@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Contador de pallets</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1020;--panel:#131a2a;--line:#25304a;--text:#f8fafc;--muted:#9ca3af;--ok:#34d399;--warn:#fbbf24;--accent:#60a5fa;--danger:#fb7185}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#0b1020,#070b14);color:var(--text);min-height:100vh}
+    header{padding:18px 16px 8px;max-width:900px;margin:auto} h1{font-size:1.35rem;margin:0 0 4px} p{margin:0;color:var(--muted);font-size:.93rem}
+    main{max-width:900px;margin:auto;padding:12px 16px 32px;display:grid;gap:12px}
+    .card{background:rgba(19,26,42,.92);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+    .camera{position:relative;overflow:hidden;padding:0;aspect-ratio:3/4;background:#000}
+    video,canvas{width:100%;height:100%;object-fit:cover;display:block}
+    canvas{display:none}
+    .hud{position:absolute;inset:0;pointer-events:none;padding:12px;display:flex;flex-direction:column;justify-content:space-between}
+    .pill{align-self:flex-start;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);padding:7px 10px;border-radius:999px;font-size:.78rem}
+    .reticle{align-self:center;margin:auto;width:54%;height:34%;border:2px dashed rgba(255,255,255,.45);border-radius:16px;box-shadow:0 0 0 999px rgba(0,0,0,.08)}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.controls .wide{grid-column:1/-1}
+    button{appearance:none;border:0;border-radius:14px;padding:13px 14px;font-weight:700;font-size:.95rem;background:#24314e;color:white;cursor:pointer}
+    button.primary{background:var(--accent);color:#07111f} button.success{background:var(--ok);color:#052016} button.danger{background:#3a1720;color:#fecdd3;border:1px solid #7f1d1d} button:disabled{opacity:.45;cursor:not-allowed}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:#0c1323;border:1px solid var(--line);border-radius:14px;padding:11px}.stat b{display:block;font-size:1.2rem}.stat span{font-size:.75rem;color:var(--muted)}
+    .sensor{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem}.sensor div{background:#0c1323;border-radius:12px;padding:9px;border:1px solid var(--line)}
+    .shots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.shot{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:#0c1323;border:1px solid var(--line)}.shot img{width:100%;height:100%;object-fit:cover}.shot small{position:absolute;left:5px;bottom:5px;background:rgba(0,0,0,.72);padding:3px 5px;border-radius:6px;font-size:.62rem}
+    .status{font-size:.85rem;color:var(--muted);line-height:1.35}.status strong{color:var(--text)}
+    @media(min-width:760px){main{grid-template-columns:1.2fr .8fr}.camera{grid-row:span 4;aspect-ratio:4/5}.shots{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>📦 Contador de pallets</h1>
+  <p>Captura varias vistas de una misma zona sin perder los datos de movimiento del teléfono.</p>
+</header>
+<main>
+  <section class="card camera">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="hud">
+      <div class="pill" id="cameraState">Cámara detenida</div>
+      <div class="reticle"></div>
+      <div class="pill" id="sensorState">Sensores sin permiso</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="controls">
+      <button id="startBtn" class="primary">Activar cámara + sensores</button>
+      <button id="captureBtn" class="success" disabled>Tomar foto</button>
+      <button id="exportBtn" class="wide" disabled>Exportar sesión JSON</button>
+      <button id="clearBtn" class="wide danger" disabled>Borrar sesión</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><b id="shotCount">0</b><span>fotos</span></div>
+      <div class="stat"><b id="elapsed">00:00</b><span>sesión</span></div>
+      <div class="stat"><b id="sensorHz">0</b><span>Hz sensor</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="sensor">
+      <div>α <span id="alpha">—</span>°</div><div>β <span id="beta">—</span>°</div>
+      <div>γ <span id="gamma">—</span>°</div><div>rot <span id="rotation">—</span></div>
+      <div>ax <span id="ax">—</span></div><div>ay <span id="ay">—</span></div>
+      <div>az <span id="az">—</span></div><div>t <span id="tstamp">—</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="status" id="status"><strong>Primer objetivo:</strong> validar captura multi-foto + IMU. Después conectamos detección de pallets y deduplicación entre vistas.</div>
+  </section>
+
+  <section class="card">
+    <div class="shots" id="shots"></div>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const video=$('video'),canvas=$('canvas'),startBtn=$('startBtn'),captureBtn=$('captureBtn'),exportBtn=$('exportBtn'),clearBtn=$('clearBtn');
+let stream=null,sessionStarted=null,timer=null,session=[],sensorSamples=0,lastHzTick=performance.now(),hzCounter=0;
+let latestSensor={orientation:{alpha:null,beta:null,gamma:null},motion:{x:null,y:null,z:null,rotation:null},timestamp:null};
+
+function fmt(v,d=1){return Number.isFinite(v)?v.toFixed(d):'—'}
+function setStatus(msg){$('status').innerHTML=msg}
+function updateButtons(){const has=session.length>0;exportBtn.disabled=!has;clearBtn.disabled=!has}
+function updateTime(){if(!sessionStarted)return;$('elapsed').textContent=new Date(Date.now()-sessionStarted).toISOString().slice(14,19)}
+
+async function requestSensors(){
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function') await DeviceOrientationEvent.requestPermission();
+    if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function') await DeviceMotionEvent.requestPermission();
+    window.addEventListener('deviceorientation',onOrientation,true);
+    window.addEventListener('devicemotion',onMotion,true);
+    $('sensorState').textContent='Sensores activos';
+  }catch(err){$('sensorState').textContent='Sensores no disponibles';console.warn(err)}
+}
+
+function onOrientation(e){
+  latestSensor.orientation={alpha:e.alpha,beta:e.beta,gamma:e.gamma};latestSensor.timestamp=Date.now();
+  $('alpha').textContent=fmt(e.alpha);$('beta').textContent=fmt(e.beta);$('gamma').textContent=fmt(e.gamma);tickSensor();
+}
+function onMotion(e){
+  const a=e.accelerationIncludingGravity||{};const r=e.rotationRate||{};
+  latestSensor.motion={x:a.x,y:a.y,z:a.z,rotation:{alpha:r.alpha,beta:r.beta,gamma:r.gamma}};latestSensor.timestamp=Date.now();
+  $('ax').textContent=fmt(a.x,2);$('ay').textContent=fmt(a.y,2);$('az').textContent=fmt(a.z,2);$('rotation').textContent=[fmt(r.alpha),fmt(r.beta),fmt(r.gamma)].join('/');$('tstamp').textContent=new Date().toLocaleTimeString();tickSensor();
+}
+function tickSensor(){sensorSamples++;hzCounter++;const now=performance.now();if(now-lastHzTick>=1000){$('sensorHz').textContent=hzCounter;hzCounter=0;lastHzTick=now}}
+
+async function start(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+    video.srcObject=stream;await video.play();await requestSensors();
+    sessionStarted=Date.now();timer=setInterval(updateTime,500);captureBtn.disabled=false;startBtn.disabled=true;
+    $('cameraState').textContent='Cámara activa';setStatus('<strong>Listo.</strong> Caminá despacio y sacá fotos con solapamiento entre una y otra. Cada captura guarda orientación y aceleración asociadas.');
+  }catch(err){console.error(err);setStatus('<strong>No pude abrir la cámara.</strong> Necesitás HTTPS y aceptar el permiso de cámara.');}
+}
+
+function capture(){
+  if(!video.videoWidth)return;
+  const maxW=1280,scale=Math.min(1,maxW/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+  const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const image=canvas.toDataURL('image/jpeg',0.82);
+  const item={id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),takenAt:new Date().toISOString(),width:canvas.width,height:canvas.height,sensor:JSON.parse(JSON.stringify(latestSensor)),image};
+  session.push(item);renderShot(item,session.length);$('shotCount').textContent=session.length;updateButtons();
+}
+function renderShot(item,n){const el=document.createElement('div');el.className='shot';el.innerHTML=`<img src="${item.image}" alt="Captura ${n}"><small>#${n}</small>`;$('shots').prepend(el)}
+
+function exportSession(){
+  const payload={app:'contador-pallets',version:1,startedAt:new Date(sessionStarted).toISOString(),exportedAt:new Date().toISOString(),shots:session};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`contador-pallets-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function clearSession(){if(!confirm('¿Borrar todas las capturas de esta sesión?'))return;session=[];$('shots').innerHTML='';$('shotCount').textContent='0';updateButtons()}
+
+startBtn.addEventListener('click',start);captureBtn.addEventListener('click',capture);exportBtn.addEventListener('click',exportSession);clearBtn.addEventListener('click',clearSession);
+if(!navigator.mediaDevices?.getUserMedia)setStatus('<strong>Este navegador no expone la cámara web.</strong> Probalo en Chrome/Edge móvil mediante HTTPS.');
+</script>
+</body>
+</html>
