@@ -17,6 +17,9 @@
     <string name="configure_phone_account">Configure system call integration</string>
     <string name="phone_account_ready">✓ System Phone integration ready</string>
     <string name="phone_account_not_ready">⚠ Enable “Excuse Me” under calling accounts</string>
+    <string name="phone_account_status_private">ℹ Android hides this status without Phone permission. Use “Test call now” to verify it.</string>
+    <string name="phone_account_settings_unavailable">Android could not open the calling-account settings on this device.</string>
+    <string name="phone_account_registration_failed">Android rejected the calling-account registration on this device.</string>
     <string name="system_ui_explanation">This is what makes the call use your phone’s real incoming-call screen, current system language, ringtone and lock-screen behavior.</string>
     <string name="arm">ARM</string>
     <string name="disarm">DISARM</string>
