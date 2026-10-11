@@ -1,0 +1,27 @@
+name: Archive GitHub traffic
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: github-traffic-archive
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive traffic in a private repository
+        env:
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          TRAFFIC_OWNER: mateofoulkes-lab
+          TRAFFIC_DATA_REPO: repo-traffic-data
+        run: |
+          if [ -z "$TRAFFIC_TOKEN" ]; then
+            echo "::error::Falta el secreto TRAFFIC_TOKEN. Leé TRAFFIC_SETUP.md."
+            exit 1
+          fi
+          python3 scripts/archive_traffic.py
