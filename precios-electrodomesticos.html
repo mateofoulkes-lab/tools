@@ -41,7 +41,74 @@ input::placeholder,textarea::placeholder{color:#a0acbc}
 #status.error{color:#b92b45}.hint{margin:8px 0 15px}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#213754;color:white;padding:10px 17px;border-radius:10px;box-shadow:0 10px 30px #18283a44;font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center;z-index:10}
 .toast.show{opacity:1}
-@media(max-width:650px){body{padding:14px 8px 40px}header{gap:12px}.actions{width:100%;gap:6px}.actions button{flex:1;white-space:nowrap;padding:10px 8px;font-size:.8rem}.panel{border-radius:10px}table{min-width:770px}col.c1{width:31%}col.c2{width:19%}col.c3{width:16%}col.c4{width:24%}col.c5{width:10%}th,td{padding:7px 6px}.store-title{flex-wrap:wrap}.store-title input{flex-basis:calc(100% - 40px)}.store-title .add-item{margin-left:36px}input,textarea,select{font-size:16px} .hint{font-size:.78rem}}
+@media (max-width:650px) {
+ body{padding:14px 8px 40px;overflow-x:hidden}
+ header{gap:12px}
+ .actions{width:100%;gap:6px}
+ .actions #add-store{flex:1 0 100%;padding:12px}
+ .actions button:not(#add-store){flex:1 1 auto;padding:10px 6px;font-size:.78rem;white-space:nowrap}
+ .panel{border-radius:11px;overflow:visible}
+ .table-scroll{overflow:visible}
+ table,tbody{display:block;width:100%;min-width:0}
+ colgroup,thead{display:none}
+ tr{display:grid;min-width:0}
+ td,th{position:static!important;display:block;min-width:0;width:auto;background:transparent!important;border:0!important;box-shadow:none!important;padding:0}
+ td:first-child,th:first-child{left:auto}
+ input,textarea,select{min-width:0;max-width:100%;font-size:16px;padding:9px 10px}
+ textarea{min-height:40px}
+ .hint{font-size:.8rem;line-height:1.45}
+ .store-row{
+   grid-template-columns:minmax(0,1fr) auto;
+   column-gap:9px;row-gap:9px;
+   background:#e8f1ff;
+   padding:12px;
+   border:0;border-top:1px solid #cddff7;border-bottom:1px solid #d5e4f7;
+   margin-top:13px
+ }
+ .store-row:first-child{margin-top:0;border-top:0;border-radius:10px 10px 0 0}
+ .store-row>td:first-child{grid-column:1/-1}
+ .store-row>td:nth-child(2),.store-row>td:nth-child(3){display:none}
+ .store-row>td:nth-child(4){grid-column:1;min-width:0}
+ .store-row>td:nth-child(5){grid-column:2;align-self:end}
+ .store-row>td:nth-child(4)::before{
+   content:"OBSERVACIONES DEL COMERCIO";display:block;margin-bottom:5px;
+   font-size:.63rem;letter-spacing:.065em;font-weight:750;color:#567193
+ }
+ .store-title{
+   display:grid;grid-template-columns:32px minmax(0,1fr);
+   align-items:center;gap:6px 8px;min-width:0
+ }
+ .store-title .twisty{grid-column:1;grid-row:1;margin:0}
+ .store-title input{grid-column:2;grid-row:1;min-width:0;width:100%;font-size:16px}
+ .store-title .add-item{grid-column:2;grid-row:2;justify-self:start;margin:0}
+ .item-row{
+   grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 9px;
+   background:white;
+   border:1px solid #e1e7f0;border-left:3px solid #81aef2;
+   border-radius:10px;
+   margin:9px 10px 9px 22px;padding:11px;
+   box-shadow:0 1px 4px #192f4812
+ }
+ .item-row>td::before{
+   display:block;margin-bottom:5px;font-size:.65rem;
+   font-weight:750;letter-spacing:.065em;color:#768499
+ }
+ .item-row>td:nth-child(1){grid-column:1/-1}
+ .item-row>td:nth-child(1)::before{content:"TIPO"}
+ .item-row>td:nth-child(2){grid-column:1}
+ .item-row>td:nth-child(2)::before{content:"MODELO"}
+ .item-row>td:nth-child(3){grid-column:2}
+ .item-row>td:nth-child(3)::before{content:"PRECIO (ARS)"}
+ .item-row>td:nth-child(4){grid-column:1/-1}
+ .item-row>td:nth-child(4)::before{content:"OBSERVACIONES"}
+ .item-row>td:nth-child(5){grid-column:1/-1}
+ .item-row .row-tools,.store-row .row-tools{justify-content:flex-end}
+ .product-kind{gap:8px}
+ .product-kind select{min-width:0;flex:1}
+ .branch{padding-left:3px}
+ .empty{padding:35px 16px}
+ .footer{gap:4px;line-height:1.6}
+}
 </style>
 </head>
 <body>
@@ -56,7 +123,7 @@ input::placeholder,textarea::placeholder{color:#a0acbc}
   <input type="file" id="file" accept=".json,application/json" hidden>
  </div>
 </header>
-<p class="hint">Tocá cualquier campo para escribir. Deslizá la tabla hacia los costados en el celular. Los cambios se guardan solos.</p>
+<p class="hint">Tocá cualquier campo para escribir. Los cambios se guardan solos, también desde el celular.</p>
 <section class="panel" aria-label="Tabla de comercios y precios">
  <div class="table-scroll">
   <table>
