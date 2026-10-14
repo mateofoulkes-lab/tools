@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f5f7fb">
+<title>Precios de electrodomésticos</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172336;background:#f5f7fb;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0;padding:24px 14px 60px}button,input,textarea,select{font:inherit}button{cursor:pointer}
+main{max-width:1200px;margin:auto}header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:clamp(1.35rem,4vw,1.9rem);letter-spacing:-.045em;margin:0 0 6px}p{margin:0;color:#617189;font-size:.92rem}
+.actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+button{border:1px solid #d7e0eb;background:white;color:#243550;padding:9px 12px;border-radius:9px;font-weight:650;transition:background .15s}
+button:hover{background:#edf3f9}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #267cf0;outline-offset:1px}
+.primary{background:#2468da;border-color:#2468da;color:white}.primary:hover{background:#1657c0}
+.small{padding:6px 9px;font-size:.79rem;white-space:nowrap}.danger{color:#a3293e;border-color:#f0cdd3;background:#fff9fa}.danger:hover{background:#fee9ee}
+.panel{background:#fff;border:1px solid #dbe3ef;border-radius:15px;box-shadow:0 5px 24px #253c5510;overflow:hidden}
+.table-scroll{overflow-x:auto;overscroll-behavior-x:contain}
+table{width:100%;min-width:820px;border-collapse:separate;border-spacing:0;table-layout:fixed}
+col.c1{width:29%}col.c2{width:20%}col.c3{width:15%}col.c4{width:25%}col.c5{width:11%}
+th{text-align:left;text-transform:uppercase;letter-spacing:.075em;font-size:.7rem;color:#708096;background:#f9fbfe;border-bottom:1px solid #dce4ef;padding:13px 12px}
+td{padding:9px 10px;vertical-align:middle;border-bottom:1px solid #e9eef4;background:white}
+tr:last-child td{border-bottom:0}
+td:first-child,th:first-child{position:sticky;left:0;z-index:1;box-shadow:3px 0 6px -5px #64758a}
+.store-row td{background:#eaf2ff;border-top:2px solid #d4e3fa;border-bottom:1px solid #d7e3f5}
+.store-row:first-child td{border-top:0}.store-row td:first-child{z-index:2}
+.store-title{display:flex;align-items:center;gap:6px;min-width:0}
+.store-title input{font-weight:750;font-size:.96rem;background:#fff;border-color:#c4d7f4;min-width:0;flex:1}
+.store-title button{flex-shrink:0}
+.twisty{padding:6px 7px;width:30px;font-size:1rem;background:transparent;border-color:transparent}
+input,textarea,select{width:100%;min-width:0;background:#fff;color:#1d3047;border:1px solid #d6e0ec;border-radius:8px;padding:8px 9px}
+textarea{resize:vertical;min-height:38px;max-height:160px;line-height:1.35}
+input::placeholder,textarea::placeholder{color:#a0acbc}
+.product-kind{display:flex;align-items:center;gap:7px}.branch{color:#8da0b8;padding-left:16px;font-size:1.15rem;flex:none}
+.price{font-variant-numeric:tabular-nums}
+.muted-cell{color:#9aabc1;text-align:center}.row-tools{display:flex;align-items:center;justify-content:center}
+.empty{text-align:center;padding:45px 15px;color:#607189}
+.empty strong{display:block;color:#324460;font-size:1.1rem;margin-bottom:8px}
+.footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#75839a;font-size:.79rem;padding:13px 5px}
+#status.error{color:#b92b45}.hint{margin:8px 0 15px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#213754;color:white;padding:10px 17px;border-radius:10px;box-shadow:0 10px 30px #18283a44;font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center;z-index:10}
+.toast.show{opacity:1}
+@media(max-width:650px){body{padding:14px 8px 40px}header{gap:12px}.actions{width:100%;gap:6px}.actions button{flex:1;white-space:nowrap;padding:10px 8px;font-size:.8rem}.panel{border-radius:10px}table{min-width:770px}col.c1{width:31%}col.c2{width:19%}col.c3{width:16%}col.c4{width:24%}col.c5{width:10%}th,td{padding:7px 6px}.store-title{flex-wrap:wrap}.store-title input{flex-basis:calc(100% - 40px)}.store-title .add-item{margin-left:36px}input,textarea,select{font-size:16px} .hint{font-size:.78rem}}
+</style>
+</head>
+<body>
+<main>
+<header>
+ <div><h1>🛒 Precios de electrodomésticos</h1><p>Comercios y productos, todo en una sola tabla.</p></div>
+ <div class="actions">
+  <button class="primary" id="add-store" type="button">＋ Agregar comercio</button>
+  <button id="csv" type="button" title="Abrir con Excel">↓ CSV / Excel</button>
+  <button id="json" type="button" title="Guardar una copia completa">↓ JSON</button>
+  <button id="import" type="button" title="Restaurar copia JSON">↑ Importar</button>
+  <input type="file" id="file" accept=".json,application/json" hidden>
+ </div>
+</header>
+<p class="hint">Tocá cualquier campo para escribir. Deslizá la tabla hacia los costados en el celular. Los cambios se guardan solos.</p>
+<section class="panel" aria-label="Tabla de comercios y precios">
+ <div class="table-scroll">
+  <table>
+   <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>
+   <thead><tr><th>Comercio / Tipo</th><th>Modelo</th><th>Precio (ARS)</th><th>Observaciones</th><th>Acciones</th></tr></thead>
+   <tbody id="rows"></tbody>
+  </table>
+ </div>
+ <div id="empty" class="empty" hidden><strong>Todavía no hay comercios</strong>Empezá con «Agregar comercio» y cargá los precios mientras recorrés los negocios.</div>
+</section>
+<div class="footer"><span id="count">0 comercios · 0 productos</span><span id="status" role="status">Guardado local automático</span></div>
+</main>
+<div id="toast" class="toast" role="status"></div>
+<script>
+(function(){
+"use strict";
+const KEY="electrodomesticos_tabla_v1";
+const TYPES=["Heladera","Lavasecarropas","Microondas","Cocina","Aire acondicionado","Lavarropas","Otros"];
+const $=id=>document.getElementById(id);
+const uid=()=>typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():"id"+Date.now().toString(36)+Math.random().toString(36).slice(2);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let data={version:1,stores:[]};
+let toastTimer;
+function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
+function read(){
+ try{const raw=localStorage.getItem(KEY);if(raw){const value=JSON.parse(raw);data=normalize(value);}}
+ catch(e){console.warn("No se pudo leer el almacenamiento",e);$("status").textContent="No se pudieron leer los datos guardados";$("status").classList.add("error");}
+}
+function normalize(value){
+ if(!value||!Array.isArray(value.stores))throw new Error("No es un archivo de esta tabla.");
+ if(value.stores.length>5000)throw new Error("Hay demasiados comercios.");
+ return {version:1,stores:value.stores.map(s=>{
+  if(!s||typeof s!=="object"||!Array.isArray(s.items)||s.items.length>20000)throw new Error("Archivo con estructura incorrecta.");
+  return {id:uid(),name:String(s.name??"").slice(0,500),notes:String(s.notes??"").slice(0,50000),collapsed:!!s.collapsed,items:s.items.map(i=>{
+   if(!i||typeof i!=="object")throw new Error("Producto inválido.");
+   return {id:uid(),type:TYPES.includes(i.type)?i.type:"Otros",model:String(i.model??"").slice(0,1000),price:String(i.price??"").slice(0,100),notes:String(i.notes??"").slice(0,50000)};
+  })};
+ })};
+}
+function save(){
+ try{localStorage.setItem(KEY,JSON.stringify(data));$("status").textContent="✓ Guardado en este navegador";$("status").classList.remove("error");}
+ catch(e){console.error(e);$("status").textContent="⚠ Error al guardar: exportá una copia JSON";$("status").classList.add("error");toast("No se pudo guardar. Exportá JSON para no perder datos.");}
+}
+function findStore(id){return data.stores.find(s=>s.id===id);}
+function options(selected){return TYPES.map(t=>'<option value="'+esc(t)+'"'+(selected===t?" selected":"")+'>'+esc(t)+'</option>').join("");}
+function render(){
+ const html=[];
+ data.stores.forEach(s=>{
+  html.push('<tr class="store-row" data-store="'+esc(s.id)+'">'+
+   '<td><div class="store-title"><button class="twisty" data-action="toggle" title="'+(s.collapsed?"Expandir":"Contraer")+' comercio" aria-label="Expandir o contraer">'+(s.collapsed?"▸":"▾")+'</button>'+
+   '<input data-field="store-name" value="'+esc(s.name)+'" placeholder="Nombre del comercio" aria-label="Nombre del comercio">'+
+   '<button class="small add-item" data-action="add-item" type="button">＋ Producto</button></div></td>'+
+   '<td class="muted-cell">—</td><td class="muted-cell">—</td>'+
+   '<td><textarea rows="1" data-field="store-notes" placeholder="Observaciones del comercio" aria-label="Observaciones del comercio">'+esc(s.notes)+'</textarea></td>'+
+   '<td><div class="row-tools"><button class="small danger" data-action="remove-store" type="button" title="Eliminar comercio y sus productos">Eliminar</button></div></td></tr>');
+  if(!s.collapsed)s.items.forEach(i=>{
+   html.push('<tr class="item-row" data-store="'+esc(s.id)+'" data-item="'+esc(i.id)+'">'+
+    '<td><div class="product-kind"><span class="branch" aria-hidden="true">↳</span><select data-field="type" aria-label="Tipo de producto">'+options(i.type)+'</select></div></td>'+
+    '<td><input data-field="model" value="'+esc(i.model)+'" placeholder="Marca y modelo" aria-label="Modelo"></td>'+
+    '<td><input class="price" data-field="price" type="number" min="0" step="any" inputmode="decimal" value="'+esc(i.price)+'" placeholder="0" aria-label="Precio en pesos"></td>'+
+    '<td><textarea rows="1" data-field="notes" placeholder="Observaciones del producto" aria-label="Observaciones del producto">'+esc(i.notes)+'</textarea></td>'+
+    '<td><div class="row-tools"><button class="small danger" data-action="remove-item" type="button" title="Eliminar producto">Eliminar</button></div></td></tr>');
+  });
+ });
+ $("rows").innerHTML=html.join("");
+ $("empty").hidden=data.stores.length!==0;
+ $("count").textContent=data.stores.length+" comercio"+(data.stores.length===1?"":"s")+" · "+data.stores.reduce((n,s)=>n+s.items.length,0)+" productos";
+}
+function focusIn(storeId,field){const input=Array.from($("rows").querySelectorAll('[data-field="'+field+'"]')).find(x=>x.closest("[data-store]")?.dataset.store===storeId);if(input)input.focus();}
+$("add-store").addEventListener("click",()=>{
+ const s={id:uid(),name:"",notes:"",collapsed:false,items:[]};data.stores.push(s);save();render();focusIn(s.id,"store-name");
+});
+$("rows").addEventListener("input",change);
+$("rows").addEventListener("change",change);
+function change(ev){
+ const field=ev.target.dataset.field;if(!field)return;
+ const row=ev.target.closest("[data-store]");if(!row)return;
+ const s=findStore(row.dataset.store);if(!s)return;
+ if(field==="store-name")s.name=ev.target.value;
+ else if(field==="store-notes")s.notes=ev.target.value;
+ else{const item=s.items.find(i=>i.id===row.dataset.item);if(!item)return;if(["type","model","price","notes"].includes(field))item[field]=ev.target.value;}
+ save();
+}
+$("rows").addEventListener("click",ev=>{
+ const btn=ev.target.closest("button[data-action]");if(!btn)return;
+ const row=btn.closest("[data-store]");const s=findStore(row?.dataset.store);if(!s)return;
+ const action=btn.dataset.action;
+ if(action==="toggle"){s.collapsed=!s.collapsed;save();render();}
+ if(action==="add-item"){
+  s.collapsed=false;
+  const item={id:uid(),type:"Heladera",model:"",price:"",notes:""};s.items.push(item);save();render();
+  const target=$("rows").querySelector('[data-item="'+item.id+'"] [data-field="model"]');if(target)target.focus();
+ }
+ if(action==="remove-item"){
+  const i=s.items.findIndex(x=>x.id===row.dataset.item);
+  if(i>=0&&confirm("¿Eliminar este producto?")){s.items.splice(i,1);save();render();}
+ }
+ if(action==="remove-store"){
+  if(confirm("¿Eliminar el comercio «"+(s.name||"Sin nombre")+"» y todos sus productos?")){
+   data.stores=data.stores.filter(x=>x.id!==s.id);save();render();
+  }
+ }
+});
+function download(name,body,mime){
+ const blob=new Blob([body],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement("a");
+ a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function date(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
+function csvValue(v){
+ let str=String(v??"");if(/^[=+@\-\t\r]/.test(str))str="'"+str;
+ return '"'+str.replace(/"/g,'""')+'"';
+}
+$("csv").addEventListener("click",()=>{
+ const rows=[["Comercio","Observaciones del comercio","Tipo","Modelo","Precio ARS","Observaciones del producto"]];
+ for(const s of data.stores){
+  if(!s.items.length)rows.push([s.name,s.notes,"","","",""]);
+  for(const i of s.items)rows.push([s.name,s.notes,i.type,i.model,i.price,i.notes]);
+ }
+ download("electrodomesticos-"+date()+".csv","\uFEFFsep=;\r\n"+rows.map(r=>r.map(csvValue).join(";")).join("\r\n"),"text/csv;charset=utf-8");
+ toast("CSV exportado");
+});
+$("json").addEventListener("click",()=>{
+ download("electrodomesticos-"+date()+".json",JSON.stringify({app:"tabla-electrodomesticos",version:1,exportedAt:new Date().toISOString(),stores:data.stores},null,2),"application/json;charset=utf-8");
+ toast("Copia de seguridad JSON exportada");
+});
+$("import").addEventListener("click",()=>$("file").click());
+$("file").addEventListener("change",async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  if(file.size>20*1024*1024)throw new Error("Archivo demasiado grande.");
+  const parsed=JSON.parse(await file.text());
+  if(parsed.app&&parsed.app!=="tabla-electrodomesticos")throw new Error("El archivo no pertenece a esta aplicación.");
+  const imported=normalize(parsed);
+  if(!confirm("¿Reemplazar los "+data.stores.length+" comercios actuales por los "+imported.stores.length+" del archivo? Esta acción no se puede deshacer. Exportá un JSON antes si necesitás conservar los actuales."))return;
+  data=imported;save();render();toast("Datos importados correctamente");
+ }catch(err){alert("No se pudo importar el archivo: "+err.message);}
+ finally{e.target.value="";}
+});
+read();render();
+})();
+</script>
+</body>
+</html>
