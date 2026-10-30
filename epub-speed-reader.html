@@ -2862,6 +2862,13 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
 
     function closeOverlay() {
       pauseRsvp();
+      // Keep the reading position when leaving RSVP; do not jump back to
+      // the chapter/page estimate from before the rapid-reading session.
+      if (state.currentSectionWords.length) {
+        state.visibleSectionFraction = clamp(
+          (state.rsvp.index + 1) / state.currentSectionWords.length, 0, 1
+        );
+      }
       state.rsvp.overlayOpen = false;
       els.rsvpOverlay.classList.remove('active');
       clearMarkedWord(RSVP_BG_CLASS);
