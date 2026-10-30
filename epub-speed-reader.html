@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EPUB Speed Reader v2</title>
+  <title>EPUB Speed Reader v2.1</title>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
   <style>
@@ -288,6 +288,47 @@
       .app { grid-template-columns: 1fr; }
       .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
       .tabs { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* RSVP v2.1 — explicit starting word and persistent whole-book progress */
+    :root { --book-progress-height: 46px; }
+    body { padding-bottom: var(--book-progress-height); }
+    .rsvp-start-picker {
+      display: grid; grid-template-columns: minmax(0, 1fr) 116px; align-items: end;
+      gap: 10px; padding: 12px; border: 1px solid rgba(102,179,255,.28);
+      border-radius: 14px; background: rgba(102,179,255,.065);
+    }
+    .rsvp-start-preview { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .rsvp-start-preview > span { color: var(--muted); font-size: .77rem; }
+    .rsvp-start-preview strong { overflow-wrap: anywhere; color: #bcdeff; font-size: 1.12rem; }
+    .rsvp-start-number label { font-size: .77rem; }
+    .rsvp-start-number input { width: 100%; min-width: 0; }
+    .rsvp-start-help { font-size: .78rem; }
+    .book-progress-fixed {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+      min-height: var(--book-progress-height); padding: 7px clamp(12px,2.2vw,30px) 8px;
+      background: rgba(12,17,27,.97); border-top: 1px solid #354763;
+      box-shadow: 0 -9px 28px rgba(0,0,0,.25);
+      display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+      gap: 16px; align-items: center; color: #e9edf5;
+      font-size: .76rem; font-variant-numeric: tabular-nums;
+    }
+    .book-progress-fixed .progress-caption { white-space: nowrap; color: #a6b7ce; }
+    .book-progress-fixed .progress-percent { white-space: nowrap; min-width: 55px; text-align: right; font-weight: 800; color: #91c9ff; }
+    .book-progress-track {
+      height: 9px; overflow: hidden; background: #242e41; border-radius: 999px;
+      border: 1px solid #35435e;
+    }
+    .book-progress-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg,#578cff,#69cdff,#a98dff);
+      border-radius: inherit; box-shadow: 0 0 16px rgba(102,179,255,.65);
+      transition: width .18s linear;
+    }
+    @media (max-width: 510px) {
+      .book-progress-fixed { gap: 8px; font-size: .67rem; }
+      .book-progress-fixed .progress-caption { max-width: 110px; white-space: normal; }
+      .rsvp-start-picker { grid-template-columns: minmax(0,1fr) 98px; }
     }
   </style>
 </head>
@@ -1916,6 +1957,17 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
               <input id="endSpeedInput" type="number" min="80" max="2500" value="450" disabled />
             </div>
           </div>
+          <div class="rsvp-start-picker">
+            <div class="rsvp-start-preview">
+              <span>Primera palabra RSVP</span>
+              <strong id="rsvpStartWord" aria-live="polite">—</strong>
+            </div>
+            <div class="field rsvp-start-number">
+              <label for="rsvpStartIndex">N.º de palabra</label>
+              <input id="rsvpStartIndex" type="number" min="1" step="1" value="1" disabled />
+            </div>
+          </div>
+          <div class="hint rsvp-start-help">Elegí una palabra haciendo clic sobre el texto del EPUB o escribí su número acá. La próxima reproducción arrancará ahí.</div>
           <div class="row">
             <button class="btn" id="backWordBtn">⟲ Retroceso</button>
             <button class="btn ok" id="playBtn">▶ Play</button>
@@ -1928,7 +1980,7 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
             <div class="stat"><span class="muted">Palabra actual</span><strong id="rsvpPosition">0</strong></div>
             <div class="stat"><span class="muted">Velocidad usada</span><strong id="currentRsvpSpeed">—</strong></div>
           </div>
-          <div class="hint">El modo RSVP usa el texto del capítulo o sección visible. La palabra actual también se resalta en el EPUB de fondo.</div>
+          <div class="hint">El modo RSVP usa el texto de la sección visible. La palabra actual se resalta en el EPUB de fondo. <strong>P</strong> reproduce o pausa, incluso con el lector abierto.</div>
         </div>
       </section>
 
@@ -2009,6 +2061,13 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       </div>
     </main>
   </div>
+  <div class="book-progress-fixed" aria-label="Progreso aproximado del libro completo">
+    <span class="progress-caption">LIBRO COMPLETO · APROX.</span>
+    <div id="bookProgressTrack" class="book-progress-track" role="progressbar" aria-label="Progreso del libro" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="bookProgressFill" class="book-progress-fill"></div>
+    </div>
+    <strong id="bookProgressPercent" class="progress-percent">0,0%</strong>
+  </div>
 
   <script>
     const DEFAULT_WPM = 250;
@@ -2030,6 +2089,7 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       currentSectionWords: [],
       sectionWordMap: new Map(),
       selectedWord: null,
+      visibleSectionFraction: 0,
       measurement: {
         active: false,
         start: null,
@@ -2045,6 +2105,9 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
         overlayOpen: false,
         distractionFree: false,
         index: 0,
+        startIndex: 0,
+        startSectionKey: null,
+        seekPending: true,
         timer: null,
         usingGrowingSpeed: false
       }
@@ -2086,6 +2149,11 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       pauseBtn: $('#pauseBtn'),
       toggleDistractionBtn: $('#toggleDistractionBtn'),
       rsvpPosition: $('#rsvpPosition'),
+      rsvpStartWord: $('#rsvpStartWord'),
+      rsvpStartIndex: $('#rsvpStartIndex'),
+      bookProgressTrack: $('#bookProgressTrack'),
+      bookProgressFill: $('#bookProgressFill'),
+      bookProgressPercent: $('#bookProgressPercent'),
       currentRsvpSpeed: $('#currentRsvpSpeed'),
       rsvpOverlay: $('#rsvpOverlay'),
       rsvpWord: $('#rsvpWord'),
@@ -2110,6 +2178,8 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       updateSpeedInputsFromMeasurement();
       updateSliderLabel();
       setStatus('Sin libro cargado.');
+      refreshRsvpStartControl();
+      updateBookProgress();
     }
 
     function bindUi() {
@@ -2170,6 +2240,13 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
         els.endSpeedInput.disabled = !on;
         state.rsvp.usingGrowingSpeed = on;
       });
+      els.rsvpStartIndex.addEventListener('change', () => {
+        const words = getVisibleSectionWords();
+        if (!words.length) return;
+        const position = parseInt(els.rsvpStartIndex.value, 10);
+        if (!Number.isFinite(position)) { refreshRsvpStartControl(); return; }
+        chooseRsvpStart(clamp(position - 1, 0, words.length - 1));
+      });
       els.playBtn.addEventListener('click', playRsvp);
       els.pauseBtn.addEventListener('click', pauseRsvp);
       els.backWordBtn.addEventListener('click', rewindRsvp);
@@ -2184,9 +2261,16 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       const target = ev.target;
       const tag = target?.tagName;
       const isTyping = target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag);
-      if (isTyping) return;
+      if (isTyping || ev.ctrlKey || ev.altKey || ev.metaKey) return;
 
       const key = ev.key.toLowerCase();
+      if (key === 'p' && !ev.repeat &&
+          (state.rsvp.overlayOpen || document.querySelector('[data-panel="rsvp"].active'))) {
+        ev.preventDefault();
+        if (state.rsvp.playing) pauseRsvp();
+        else playRsvp();
+        return;
+      }
       if (key === 's') {
         ev.preventDefault();
         startMeasurement();
@@ -2252,6 +2336,8 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
         state.loaded = true;
         const meta = await state.book.loaded.metadata;
         setStatus(`Libro cargado: ${meta?.title || file.name}`);
+        refreshRsvpStartControl();
+        updateBookProgress();
       } catch (err) {
         console.error(err);
         setStatus('No pude abrir el EPUB.', 'danger');
@@ -2264,6 +2350,13 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       state.book = null;
       state.rendition = null;
       state.loaded = false;
+      state.currentSectionIndex = 0;
+      state.currentSectionHref = null;
+      state.visibleSectionFraction = 0;
+      state.rsvp.index = 0;
+      state.rsvp.startIndex = 0;
+      state.rsvp.startSectionKey = null;
+      state.rsvp.seekPending = true;
       state.currentSectionWords = [];
       state.sectionWordMap.clear();
       state.selectedWord = null;
@@ -2276,6 +2369,8 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       closeOverlay();
       updateRsvpWord('');
       clearStats();
+      refreshRsvpStartControl();
+      updateBookProgress();
     }
 
     async function onRendered(section) {
@@ -2288,6 +2383,8 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
 
       applyCurrentViewTransforms();
       repaintMeasurementMarkers();
+      refreshRsvpStartControl();
+      updateBookProgress();
     }
 
     function onRelocated(location) {
@@ -2298,12 +2395,19 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
         els.sectionInfo.textContent = `${start.index + 1}`;
       }
       if (start.href) state.currentSectionHref = start.href;
+      const page = start.displayed?.page, totalPages = start.displayed?.total;
+      state.visibleSectionFraction = Number.isFinite(page) && Number.isFinite(totalPages) && totalPages > 0
+        ? clamp((page - 1) / totalPages, 0, 1) : 0;
+      refreshRsvpStartControl();
+      updateBookProgress();
     }
 
     function prepareContentDocument(doc, win, section) {
       injectReaderStyles(doc);
       wrapWordsInDocument(doc, section);
       bindSelectionTracking(doc, win, section);
+      // EPUB.js renders its book text inside iframes: catch P there too.
+      doc.addEventListener('keydown', onGlobalKeyDown);
     }
 
     function injectReaderStyles(doc) {
@@ -2424,6 +2528,7 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       clearMarkedWord(CURRENT_WORD_CLASS);
       state.selectedWord = sel;
       sel.span.classList.add(CURRENT_WORD_CLASS);
+      chooseRsvpStart(sel.wordIndex, sel.sectionKey);
     }
 
     function setMeasurementStartWord(sel) {
@@ -2576,22 +2681,68 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       els.speedSliderValue.textContent = els.speedSlider.value;
     }
 
+    function refreshRsvpStartControl() {
+      const words = getVisibleSectionWords();
+      const key = state.currentSectionHref || Array.from(state.sectionWordMap.keys())[0] || null;
+      if (key !== state.rsvp.startSectionKey) {
+        if (state.rsvp.playing) pauseRsvp();
+        state.rsvp.startSectionKey = key;
+        state.rsvp.startIndex = 0;
+        state.rsvp.index = 0;
+        state.rsvp.seekPending = true;
+      }
+      els.rsvpStartIndex.disabled = words.length === 0;
+      els.rsvpStartIndex.max = String(Math.max(1, words.length));
+      const index = clamp(state.rsvp.startIndex, 0, Math.max(0, words.length - 1));
+      els.rsvpStartIndex.value = String(index + 1);
+      els.rsvpStartWord.textContent = words[index]?.text || '—';
+      els.rsvpStartWord.title = words[index]?.text || 'Sin palabra seleccionada';
+    }
+
+    function chooseRsvpStart(index, sectionKey = state.currentSectionHref) {
+      const key = sectionKey || Array.from(state.sectionWordMap.keys())[0];
+      const words = state.sectionWordMap.get(key) || [];
+      if (!words.length) return;
+      if (state.rsvp.playing) pauseRsvp();
+      state.rsvp.startIndex = clamp(index, 0, words.length - 1);
+      state.rsvp.startSectionKey = key;
+      state.rsvp.index = state.rsvp.startIndex;
+      state.rsvp.seekPending = true;
+      refreshRsvpStartControl();
+      if (state.rsvp.overlayOpen) renderRsvpWordAtCurrentIndex();
+      updateBookProgress();
+    }
+
+    function updateBookProgress() {
+      const sections = state.book?.spine?.spineItems || [];
+      const sectionCount = sections.length;
+      const sectionIndex = clamp(state.currentSectionIndex || 0, 0, Math.max(0, sectionCount - 1));
+      const wordCount = state.currentSectionWords.length;
+      const fraction = state.rsvp.overlayOpen && wordCount
+        ? clamp((state.rsvp.index + 1) / wordCount, 0, 1)
+        : clamp(state.visibleSectionFraction || 0, 0, 1);
+      // Estimate whole-book progress from the position in the spine, not the chapter alone.
+      const percent = sectionCount ? clamp((sectionIndex + fraction) / sectionCount * 100, 0, 100) : 0;
+      els.bookProgressFill.style.width = percent.toFixed(2) + '%';
+      els.bookProgressPercent.textContent = percent.toFixed(1).replace('.', ',') + '%';
+      els.bookProgressTrack.setAttribute('aria-valuenow', percent.toFixed(1));
+      els.bookProgressTrack.setAttribute('aria-valuetext', 'Aproximadamente ' + percent.toFixed(1) + '% del libro');
+    }
+
     function playRsvp() {
       if (!state.loaded) return alert('Primero cargá un EPUB.');
+      if (state.rsvp.playing) return;
       const words = getVisibleSectionWords();
       if (!words.length) return alert('No encuentro palabras en la sección visible.');
 
       state.currentSectionWords = words;
-      const currentKey = state.currentSectionHref || Array.from(state.sectionWordMap.keys())[0];
-      const canResume = !state.rsvp.playing && state.rsvp.index > 0 && state.rsvp.index < words.length;
-      if (canResume) {
+      refreshRsvpStartControl();
+      if (state.rsvp.seekPending || state.rsvp.index >= words.length - 1) {
+        state.rsvp.index = clamp(state.rsvp.startIndex, 0, words.length - 1);
+      } else {
         state.rsvp.index = clamp(state.rsvp.index, 0, words.length - 1);
-      } else if (state.selectedWord && state.selectedWord.sectionKey === currentKey) {
-        state.rsvp.index = clamp(state.selectedWord.wordIndex, 0, words.length - 1);
-      } else if (state.rsvp.index >= words.length) {
-        state.rsvp.index = 0;
       }
-
+      state.rsvp.seekPending = false;
       openOverlay();
       state.rsvp.playing = true;
       scheduleNextWord();
@@ -2648,6 +2799,7 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       highlightBackgroundWord(wordObj.index);
       els.rsvpPosition.textContent = `${state.rsvp.index + 1} / ${state.currentSectionWords.length}`;
       els.currentRsvpSpeed.textContent = `${resolveCurrentRsvpSpeed()} WPM`;
+      updateBookProgress();
     }
 
     function resolveCurrentRsvpSpeed() {
@@ -2713,6 +2865,7 @@ Q0PjvwpC/B/Ygzg/sEp+EwAAAABJRU5ErkJggg==
       state.rsvp.overlayOpen = false;
       els.rsvpOverlay.classList.remove('active');
       clearMarkedWord(RSVP_BG_CLASS);
+      updateBookProgress();
     }
 
     function toggleDistractionFree() {
