@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {parseLyrics,validateWords,wordsFromMarks,activeWord} from './timing.mjs';
+test('plain lyrics preserve lines and fill the duration',()=>{const words=parseLyrics('Hola mundo\nOtra frase',8);assert.deepEqual(words.map(w=>[w.line,w.start,w.end]),[[0,0,2],[0,2,4],[1,4,6],[1,6,8]]);});
+test('LRC supports metadata, offsets and repeated timestamps',()=>{const words=parseLyrics('[ar:Artist]\n[offset:500]\n[00:01.00][00:05.00]Hola mundo\n[00:09.00]Final',12);assert.equal(words[0].start,1.5);assert.equal(words[2].start,5.5);assert.equal(words[4].start,9.5);assert.equal(words.at(-1).end,12);});
+test('invalid or mixed timestamps cannot reach export',()=>{assert.throws(()=>parseLyrics('[00:01]Hola\nSin tiempo',5));assert.throws(()=>parseLyrics('[00:08]Hola',5));assert.throws(()=>parseLyrics('[00:01]A\n[00:01]B',5));assert.throws(()=>parseLyrics('',5));});
+test('manual markers replace approximate timing and preserve pauses',()=>{const words=parseLyrics('Uno dos',5);const marked=wordsFromMarks(words,[1,3],4,5);assert.equal(activeWord(marked,.5),-1);assert.equal(activeWord(marked,1),0);assert.equal(activeWord(marked,3),1);assert.equal(activeWord(marked,4),-1);assert.throws(()=>wordsFromMarks(words,[2,1],4,5));assert.throws(()=>wordsFromMarks(words,[1],4,5));});
+test('reject overlapping, nonfinite and out-of-bounds project data',()=>{const words=parseLyrics('Uno dos',5);assert.throws(()=>validateWords([{...words[0],end:Infinity}],5));assert.throws(()=>validateWords([words[0],{...words[1],start:1}],5));assert.throws(()=>validateWords([{...words[0],start:-1}],5));assert.throws(()=>validateWords([{...words[0],text:'x'.repeat(121)}],5));});

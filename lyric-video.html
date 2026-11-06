@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101014">
+  <title>Lyric Studio · matt's tools</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="lyric-video/studio.css">
+</head>
+<body>
+  <header class="studio-header"><a href="index.html">← matt's tools</a><span class="privacy">● Tus archivos se quedan en tu dispositivo</span></header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">DALE MOVIMIENTO A TU MÚSICA</p><h1>Lyric <em>Studio.</em></h1><p>Tu canción. Tu imagen. Cada palabra a su ritmo.</p></div><span class="pill">9:16 · VIDEO VERTICAL</span></div>
+    <div class="workspace">
+      <section class="editor" aria-label="Editor">
+        <fieldset id="editorFields">
+          <section class="panel"><h2><span>01</span> Armá la escena</h2>
+            <div class="upload-grid"><label class="upload">♫ <strong>Tu canción</strong><small id="audioName">MP3, WAV o audio compatible</small><input id="audioFile" type="file" accept="audio/*" aria-label="Cargar canción"></label><label class="upload">▧ <strong>Tu imagen</strong><small id="imageName">JPG, PNG o WebP</small><input id="imageFile" type="file" accept="image/*" aria-label="Cargar imagen de fondo"></label></div>
+            <div class="two"><label>Título<input id="title" maxlength="60" value="Una canción, mil momentos"></label><label>Artista / firma<input id="artist" maxlength="60" placeholder="Tu nombre"></label></div>
+          </section>
+          <section class="panel"><h2><span>02</span> Poné las palabras</h2>
+            <label for="lyrics">Una frase por línea, o letras LRC con [mm:ss.xx]</label>
+            <textarea id="lyrics" rows="5" placeholder="Pegá acá la letra de tu canción…"></textarea>
+            <div class="actions"><button id="applyLyrics">Preparar letras</button><label class="file-button">Importar .lrc / .txt<input id="lyricsFile" type="file" accept=".lrc,.txt,text/plain" aria-label="Importar letras"></label></div>
+            <p class="hint">El reparto inicial es aproximado: no reconoce la voz. Importá tiempos LRC o marcá cada palabra escuchando la canción.</p>
+            <details><summary>Ajustar tiempos por palabra <span id="wordCount"></span></summary><div id="wordEditor" class="word-editor"></div></details>
+          </section>
+          <section class="panel"><h2><span>03</span> Encontrá el ritmo</h2>
+            <div class="actions"><button id="sync" class="primary">● Sincronizar escuchando</button><select id="speed" aria-label="Velocidad para sincronizar"><option value="1">Velocidad 1×</option><option value="0.75">Velocidad 0,75×</option><option value="0.5">Velocidad 0,5×</option></select></div>
+            <div id="syncPanel" hidden><p id="syncHint" aria-live="polite"></p><button id="tap" class="tap">Marcar palabra <kbd>Espacio</kbd></button><button id="cancelSync">Cancelar sincronización</button></div>
+            <p class="hint">Empezá desde el inicio. Marcá el comienzo de cada palabra y, con un último toque, el final de la última. Podés pausar entre marcas.</p>
+          </section>
+          <section class="panel"><h2><span>04</span> Hacelo tuyo</h2>
+            <div class="presets" role="group" aria-label="Estilos"><button data-theme="aurora" class="selected">✦ Aurora</button><button data-theme="sunset">◒ Atardecer</button><button data-theme="mono">◐ Editorial</button></div>
+            <div class="two"><label>Color protagonista<input id="accent" type="color" value="#b8ff7b"></label><label>Tipografía<select id="font"><option value="sans">Moderna</option><option value="serif">Editorial</option><option value="mono">Monoespaciada</option></select></label><label>Tamaño de letra<input id="fontSize" type="range" min="38" max="80" value="58"></label><label>Altura de las letras<input id="position" type="range" min="35" max="72" value="58"></label><label>Oscurecer imagen<input id="darkness" type="range" min="10" max="85" value="45"></label><label>Movimiento del fondo<select id="motion"><option value="on">Zoom suave</option><option value="off">Imagen fija</option></select></label></div>
+          </section>
+        </fieldset>
+        <section class="panel export-panel"><h2><span>05</span> Llevátelo al celular</h2><label>Resolución<select id="resolution"><option value="720">720 × 1280 · Liviano</option><option value="1080">1080 × 1920 · Full HD</option></select></label><p class="hint" id="formatHint"></p><button id="export" class="primary export-button">Exportar video ↗</button><button id="cancelExport" hidden>Cancelar exportación</button><progress id="progress" max="1" value="0" hidden aria-label="Progreso de exportación"></progress><a id="download" class="download" hidden>Descargar video ↓</a><p class="hint">La exportación dura lo mismo que la canción. Mantené esta pestaña visible hasta terminar.</p></section>
+        <div class="actions project-actions"><button id="saveProject">Guardar letras y estilo</button><label class="file-button">Abrir proyecto<input id="projectFile" type="file" accept=".json,application/json" aria-label="Abrir proyecto"></label></div><p class="hint">El proyecto guarda los tiempos y el diseño. Volvé a cargar el audio y la imagen al abrirlo.</p>
+      </section>
+      <aside class="preview"><div class="preview-top"><span>VISTA PREVIA</span><span class="live-dot">● EN VIVO</span></div><div class="phone"><canvas id="canvas" width="720" height="1280" aria-label="Vista previa del video vertical"></canvas></div><div class="transport"><button id="play" aria-label="Reproducir o pausar">▶</button><input id="seek" type="range" min="0" max="1" value="0" step="0.01" aria-label="Posición de reproducción"><output id="time">0:00 / 0:00</output></div><p class="preview-caption">Hecho para ocupar toda la pantalla.</p></aside>
+    </div>
+    <p id="status" role="status" aria-live="polite">Cargá una canción para empezar. Podés personalizar el diseño mientras tanto.</p>
+  </main>
+  <script type="module" src="lyric-video/app.mjs"></script>
+</body>
+</html>
